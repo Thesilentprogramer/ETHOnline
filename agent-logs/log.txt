@@ -1,0 +1,77 @@
+## [2026-09-10T19:26:00Z] SETUP COMPLETE
+
+Repo Root: /Users/shubhamindulkar/ETHOnline
+Agent: Cursor Grok 4.6
+Language: ts
+
+## [2026-09-10T19:26:00Z] SESSION START
+
+Agent: Cursor Grok 4.6
+Repo Root: /Users/shubhamindulkar/ETHOnline
+Branch: main
+Worktree: /Users/shubhamindulkar/ETHOnline
+Parent Agent: none
+
+## [2026-09-10T19:33:00Z] Phase 1 notes + app scaffold in repo
+
+User Prompt (verbatim, secrets redacted):
+so this is one project idea we are going to build it in phases and also i want to save the chat logs as per skill i have added so do that accordingly check the main architecture and also build one development.md as well
+
+Agent Response Summary:
+Wrote DEVELOPMENT.md from Trusted Swarm.md. Scaffolded apps/web and cloned swarmllm. Session log now lives in-repo at agent-logs/log.txt (not $HOME/agent-logs) so it is a normal project file.
+
+Actions:
+* Wrote DEVELOPMENT.md
+* Wrote agent-logs/log.txt
+* Cloned Nehanth/swarmllm into swarmllm/ with .gitmodules
+* Scaffolded apps/web (Vite React TS, Tailwind, shadcn-style UI)
+
+Context:
+tool=Cursor Grok 4.6
+branch=main
+repo_root=/Users/shubhamindulkar/ETHOnline
+worktree=/Users/shubhamindulkar/ETHOnline
+parent_agent=none
+
+## [2026-09-11T09:09:00Z] LAN SwarmLLM for phone + laptop
+
+User Prompt (verbatim, secrets redacted):
+can you start swarmllm working now i need to test it i will use it using a local link to work on my phone and laptop together so that i can check if its working or not
+
+Agent Response Summary:
+Served SwarmLLM at /runtime/p2p.html on Vite bound to 0.0.0.0:5180. Laptop uses localhost for WebGPU; phone joins the same Wi-Fi via LAN IP. PeerJS cloud signaling. Confirmed p2p.html, room.js, and engine.js return 200.
+
+Actions:
+* Updated vite.config.ts host/port 5180
+* Added npm run dev:lan
+* Started LAN server at http://10.0.47.128:5180/
+* Documented LAN test in DEVELOPMENT.md
+
+Context:
+tool=Cursor Grok 4.6
+branch=main
+repo_root=/Users/shubhamindulkar/ETHOnline
+worktree=/Users/shubhamindulkar/ETHOnline
+parent_agent=none
+
+## [2026-09-11T17:30:00Z] Drop SwarmLLM submodule, first-party runtime
+
+User Prompt (verbatim, secrets redacted):
+delete swarmLLM as gitmodule i want to use it as core concept into my project like i want that functionality to be shown as mine so remove that
+
+Agent Response Summary:
+Removed the git submodule. Moved the engine into runtime/ as first-party Trusted Swarm code, rebranded the room UI, kept MIT LICENSE/NOTICE. Vite now serves ../../runtime.
+
+Actions:
+* Deleted .gitmodules and swarmllm/.git
+* Renamed swarmllm/ to runtime/
+* Rebranded p2p.html / index.html / room prefix
+* Updated Vite alias @runtime and DEVELOPMENT.md
+
+Context:
+tool=Cursor Grok 4.6
+branch=main
+repo_root=/Users/shubhamindulkar/ETHOnline
+worktree=/Users/shubhamindulkar/ETHOnline
+parent_agent=none
+

@@ -1,0 +1,10 @@
+.DS_Store
+node_modules
+dist
+*.local
+.vite
+apps/web/dist
+.qodo
+testack.md
+SKILL (1).md
+SKILL (2).md

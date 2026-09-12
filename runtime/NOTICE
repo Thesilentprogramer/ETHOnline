@@ -1,0 +1,5 @@
+Trusted Swarm inference runtime (`runtime/`).
+
+Portions of the WebGPU / WebRTC engine are derived from SwarmLLM
+(MIT License, Copyright (c) 2026 Nehanth Narendrula). The original
+copyright notice is in LICENSE.

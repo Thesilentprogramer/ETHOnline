@@ -1,0 +1,117 @@
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Shell } from '@/components/Shell'
+import { cn } from '@/lib/utils'
+import { defaultModelLabel, runtimeRoomUrl } from '@/swarm/runtime.ts'
+import { loadCapability, loadControls, roleLabel } from '@/swarm/session.ts'
+
+export function Room() {
+  const [params, setParams] = useSearchParams()
+  const role = params.get('role') === 'worker' ? 'worker' : 'host'
+  const [joinCode, setJoinCode] = useState(params.get('code') ?? '')
+  const [appliedCode, setAppliedCode] = useState(params.get('code') ?? '')
+  const [startedAt] = useState(() => Date.now())
+  const [elapsed, setElapsed] = useState(0)
+  const [iframeStatus, setIframeStatus] = useState('runtime loading')
+  const cap = loadCapability()
+  const controls = loadControls()
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [startedAt])
+
+  const src = useMemo(
+    () => runtimeRoomUrl({ code: role === 'worker' ? appliedCode : undefined }),
+    [role, appliedCode],
+  )
+
+  function applyJoin(e: FormEvent) {
+    e.preventDefault()
+    const code = joinCode.trim().toUpperCase()
+    setAppliedCode(code)
+    const next = new URLSearchParams(params)
+    next.set('role', 'worker')
+    if (code) next.set('code', code)
+    setParams(next)
+  }
+
+  return (
+    <Shell>
+      <main className="flex min-h-[calc(100svh-6rem)] flex-col">
+        <div className="liquid-glass mx-4 mb-0 grid gap-3 rounded-2xl px-4 py-3 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="flex flex-wrap gap-3 text-xs text-white/60">
+            <Metric k="role" v={cap ? roleLabel(cap.role) : 'unprobed'} />
+            <Metric k="score" v={cap ? String(cap.score) : '—'} />
+            <Metric k="tab" v={role} />
+            <Metric k="model" v={defaultModelLabel()} />
+            <Metric k="elapsed" v={`${elapsed}s`} />
+            <Metric k="join" v={elapsed < 2 ? 'starting' : `${elapsed}s`} />
+            <Metric k="ttft / tok/s" v="see runtime below" />
+            <Metric k="status" v={iframeStatus} />
+          </div>
+          <p className="text-xs text-white/50">
+            Same Wi-Fi: laptop creates the room in the runtime below, then open the join URL on
+            your phone (Chrome/Edge). Phone WebGPU is limited — it can still join as a light worker.
+          </p>
+        </div>
+
+        {role === 'worker' && (
+          <form onSubmit={applyJoin} className="flex gap-2 px-4 py-3">
+            <Input
+              placeholder="ROOM CODE"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              className="max-w-xs uppercase"
+            />
+            <Button type="submit" variant="outline">
+              Load room
+            </Button>
+          </form>
+        )}
+
+        {!cap && (
+          <Card className="m-4">
+            No capability report in this tab.{' '}
+            <Link to={`/onboard?intent=${role}`} className="underline">
+              Run onboarding
+            </Link>{' '}
+            first.
+          </Card>
+        )}
+
+        <iframe
+          title="Trusted Swarm runtime"
+          className="min-h-[70vh] w-full flex-1 bg-white"
+          src={src}
+          allow="gpu; webgpu; cross-origin-isolated"
+          onLoad={() => setIframeStatus('runtime ready')}
+        />
+
+        <footer className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs text-white/50">
+          <span>
+            Caps: {controls.maxMinutes} min · {controls.memoryCapGb} GB · unfocused{' '}
+            {controls.workUnfocused ? 'on' : 'off'}
+          </span>
+          <a href="/runtime/p2p.html" className="underline">
+            Open room full-page
+          </a>
+          <Link to="/onboard" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+            Re-probe
+          </Link>
+        </footer>
+      </main>
+    </Shell>
+  )
+}
+
+function Metric({ k, v }: { k: string; v: string }) {
+  return (
+    <span>
+      <span className="text-white/35">{k}</span> {v}
+    </span>
+  )
+}
