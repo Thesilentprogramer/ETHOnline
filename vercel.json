@@ -1,0 +1,9 @@
+{
+  "framework": null,
+  "installCommand": "npm install --prefix apps/web",
+  "buildCommand": "npm run build --prefix apps/web",
+  "outputDirectory": "apps/web/dist",
+  "rewrites": [
+    { "source": "/((?!runtime/|assets/).*)", "destination": "/index.html" }
+  ]
+}

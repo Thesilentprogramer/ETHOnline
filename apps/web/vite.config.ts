@@ -45,9 +45,13 @@ function runtimeStatic(): Plugin {
     },
     closeBundle() {
       const out = path.resolve(rootDir, 'dist/runtime')
+      const skip = new Set(['docs', 'tests', 'roadmap', '.github', 'benchmarks', '.git', 'node_modules'])
       fs.cpSync(swarmRoot, out, {
         recursive: true,
-        filter: (src) => !src.includes(`${path.sep}.git`),
+        filter: (src) => {
+          const rel = path.relative(swarmRoot, src).split(path.sep)[0]
+          return !rel || !skip.has(rel)
+        },
       })
     },
   }

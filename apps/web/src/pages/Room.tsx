@@ -85,7 +85,7 @@ export function Room() {
 
         <iframe
           title="Trusted Swarm runtime"
-          className="min-h-[70vh] w-full flex-1 bg-white"
+          className="min-h-[70vh] w-full flex-1 bg-[#0a0608]"
           src={src}
           allow="gpu; webgpu; cross-origin-isolated"
           onLoad={() => setIframeStatus('runtime ready')}

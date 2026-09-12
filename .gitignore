@@ -4,6 +4,7 @@ dist
 *.local
 .vite
 apps/web/dist
+.vercel
 .qodo
 testack.md
 SKILL (1).md

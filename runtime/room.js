@@ -292,16 +292,6 @@ function onData(from, d) {
         if (ai.visibility !== "all") sendTo(from, { t: "ai-visibility", mode: ai.visibility });
       }
       break;
-    case "ai-next": ai.next = d.next; ensureLink(d.next); break;
-    case "ai-reset": try { ai.engine?.reset?.(); } catch {} break;
-    case "ai-layers": ai.layersByName = d.by; loadCardRender(); break;
-    case "ai-start-req":
-      if (MODELS[d.model]) $("ai-model").value = d.model;   // every screen shows the model that was actually started
-      $("ai-start").disabled = true; $("ai-model").disabled = true;
-      if (d.boss !== peer.id) { aiLoading(true, `starting ${MODELS[d.model]?.label.split("\u00b7")[0].trim()}`); $("ldg-sub").textContent = `${d.by} pressed start`; $("ldg-fill").style.width = "0%"; }
-      if (d.boss === peer.id) { toast(`${d.by} started ${MODELS[d.model]?.label.split("\u00b7")[0].trim()}`); aiStart(d.model); }
-      else aiStatus(`${d.by} started the model\u2026`);
-      break;
     case "roster": {
       // the host's view of the room: draw a card per device, no mesh connections
       const seen = new Set();
@@ -597,13 +587,39 @@ function aiLoading(show, title) {
 }
 function loadCardRender() {
   const rows = $("lc-rows"); if (!rows) return;
-  const names = [myName, ...[...conns.values()].map((c) => c.name)];
+  const fromLayers = Object.keys(ai.layersByName || {});
+  const fromConns = [myName, ...[...conns.values()].map((c) => c.name)];
+  const names = [...new Set(fromLayers.length ? fromLayers : fromConns)].filter(Boolean);
   const layersOf = (nm) => (ai.layersByName || {})[nm];
   rows.innerHTML = names.map((nm) => {
     const pct = Math.max(0, Math.min(100, (ai.prog || {})[nm] ?? 0));
     const l = layersOf(nm);
     return `<div class="lc-row${pct >= 100 ? " done" : ""}"><div class="n">${nm}${l ? `<small>layers ${l}</small>` : ""}</div><div class="bar"><div class="fill" style="width:${pct}%"></div></div><div class="pct">${pct >= 100 ? "ready" : pct + "%"}</div></div>`;
   }).join("");
+}
+let lastProgPub = 0;
+function publishProg(force = false) {
+  if (ai.role !== "host") return;
+  const now = Date.now();
+  if (!force && now - lastProgPub < 200) return;
+  lastProgPub = now;
+  broadcastAll({ t: "ai-hostprog", all: { ...(ai.prog || {}) }, at: now });
+}
+function startProgRelay() {
+  if (ai.role !== "host") return;
+  clearInterval(ai.progTimer);
+  publishProg(true);
+  ai.progTimer = setInterval(() => publishProg(true), 400);
+}
+function setMyProg(pct) {
+  ai.myPct = pct;
+  ai.prog = ai.prog || {};
+  ai.progAt = ai.progAt || {};
+  ai.prog[myName] = Math.round(pct);
+  ai.progAt[myName] = Date.now();
+  loadCardRender();
+  if (ai.role === "host") publishProg();
+  else if (ai.hostId) sendTo(ai.hostId, { t: "ai-progress", name: myName, pct: Math.round(pct) });
 }
 function aiProgress(done, total, note) {
   const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0;
@@ -680,8 +696,7 @@ async function aiLoadShard(modelKey, range, hasEmbed, hasHead) {
   ai.tune = await autotuneCoop(ai.device).catch(() => ({ wg: 256, rows: 4 }));
   crumb(`autotune: WG=${ai.tune.wg} ROWS=${ai.tune.rows}`);
   const isPhone = myMeta?.phone;
-  ai.myPct = 0;
-  ai.prog = { [myName]: 0 }; ai.progAt = { [myName]: Date.now() };
+  setMyProg(0);
   const streamOpts = { pace: isPhone ? 300 : 0, staging: isPhone ? 2 * 2 ** 20 : 8 * 2 ** 20 };
   if (M.cfg) {
     ai.cfg = await (await fetch(M.cfg)).json();
@@ -691,16 +706,9 @@ async function aiLoadShard(modelKey, range, hasEmbed, hasHead) {
   const onProg = (done, total) => {
     aiProgress(done, total);
     aiStatus(cacheHits > done * 0.5 ? `loading weights from this device's cache\u2026` : `downloading weights\u2026`);
-    ai.myPct = total ? done / total * 100 : 0;
-    ai.prog = ai.prog || {}; ai.progAt = ai.progAt || {};
-    ai.prog[myName] = Math.round(ai.myPct); ai.progAt[myName] = Date.now();
-    if (ai.role === "worker") sendTo(ai.hostId, { t: "ai-progress", pct: Math.round(ai.myPct) });
-    loadCardRender();
+    setMyProg(total ? done / total * 100 : 0);
   };
-  if (ai.role === "host") {
-    clearInterval(ai.progTimer);
-    ai.progTimer = setInterval(() => { if (ai.role === "host") broadcastAll({ t: "ai-hostprog", all: ai.prog || {}, at: Date.now() }); }, 600);
-  }
+  if (ai.role === "host") startProgRelay();
   // every device (host included, even when its weights come from cache) keeps within a few
   // percent of the slowest device, so the bars climb together and the room finishes as one
   const slowest = () => {
@@ -774,7 +782,10 @@ async function aiLoadShard(modelKey, range, hasEmbed, hasHead) {
   }
   ai.range = range;
   ai.model = modelKey;
-  aiLoading(false);
+  setMyProg(100);
+  aiLoading(true, `layers ${range[0]}\u2013${range[1] - 1} ready`);
+  $("ldg-sub").textContent = "waiting for the rest of the room";
+  $("ldg-fill").style.width = "100%";
 }
 
 // ---- host ----
@@ -857,6 +868,14 @@ async function aiStart(modelArg) {
     if (needGB > haveGB * 1.15)
       log("swarm", `\u26a0 this model needs ~${needGB.toFixed(1)} GB but the room pledged ~${haveGB.toFixed(1)} GB \u2014 it may not fit`);
 
+    ai.layersByName = Object.fromEntries([[myName, `${ranges[0][0]}\u2013${ranges[0][1] - 1}`], ...ai.chain.map((id, i) => [conns.get(id)?.name || id, `${ranges[i + 1][0]}\u2013${ranges[i + 1][1] - 1}`])]);
+    ai.prog = Object.fromEntries(Object.keys(ai.layersByName).map((nm) => [nm, 0]));
+    ai.progAt = Object.fromEntries(Object.keys(ai.layersByName).map((nm) => [nm, Date.now()]));
+    startProgRelay();
+    broadcastAll({ t: "ai-layers", by: ai.layersByName });
+    aiLoading(true, "Downloading model");
+    $("ldg-sub").textContent = "every device in the room is fetching its slice";
+    loadCardRender();
     ai.deferred = [];
     ai.chain.forEach((id, i) => {
       const msg = {
@@ -869,8 +888,6 @@ async function aiStart(modelArg) {
       if (small) { ai.deferred.push({ id, msg }); sendTo(id, { t: "ai-wait" }); }
       else sendTo(id, msg);
     });
-    ai.layersByName = Object.fromEntries([[myName, `${ranges[0][0]}\u2013${ranges[0][1] - 1}`], ...ai.chain.map((id, i) => [conns.get(id)?.name || id, `${ranges[i + 1][0]}\u2013${ranges[i + 1][1] - 1}`])]);
-    broadcastAll({ t: "ai-layers", by: ai.layersByName });
     const splitDesc = [`you ${assigned[0]}+embed`, ...ai.chain.map((id, i) =>
       `${conns.get(id)?.name || id} ${assigned[i + 1]}`)].join(" \u00b7 ");
     log("swarm", `${M.label} \u2014 layer split by pledge: ${splitDesc}`);
@@ -1153,6 +1170,27 @@ async function aiGenerate(textArg, who, askerId = peer.id) {
 async function aiOnData(from, d) {
   const e = conns.get(from);
   switch (d.t) {
+    case "ai-next": ai.next = d.next; ensureLink(d.next); break;
+    case "ai-reset": try { ai.engine?.reset?.(); } catch {} break;
+    case "ai-layers":
+      ai.layersByName = d.by;
+      ai.prog = ai.prog || {};
+      for (const nm of Object.keys(d.by || {})) if (ai.prog[nm] == null) ai.prog[nm] = 0;
+      aiLoading(true, "Downloading model");
+      $("ldg-sub").textContent = "every device in the room is fetching its slice";
+      loadCardRender();
+      break;
+    case "ai-start-req":
+      if (MODELS[d.model]) $("ai-model").value = d.model;
+      $("ai-start").disabled = true; $("ai-model").disabled = true;
+      if (d.boss !== peer.id) {
+        aiLoading(true, `starting ${MODELS[d.model]?.label.split("\u00b7")[0].trim()}`);
+        $("ldg-sub").textContent = `${d.by} pressed start`;
+        $("ldg-fill").style.width = "0%";
+      }
+      if (d.boss === peer.id) { toast(`${d.by} started ${MODELS[d.model]?.label.split("\u00b7")[0].trim()}`); aiStart(d.model); }
+      else aiStatus(`${d.by} started the model\u2026`);
+      break;
     case "ai-wait":
       ai.role = "worker"; ai.hostId = from;
       aiLoading(true, "Syncing with the room");
@@ -1186,14 +1224,22 @@ async function aiOnData(from, d) {
       ai.prog = { ...(d.all || {}), [myName]: Math.round(ai.myPct || 0) };
       ai.progAt = ai.progAt || {};
       for (const nm of Object.keys(d.all || {})) if (nm !== myName) ai.progAt[nm] = now;
+      if (!$("load-card").classList.contains("on")) {
+        aiLoading(true, "Downloading model");
+        $("ldg-sub").textContent = "every device in the room is fetching its slice";
+      }
       loadCardRender();
       break;
     }
-    case "ai-progress":
+    case "ai-progress": {
+      const nm = d.name || e?.name || from;
       if (e?.card) e.card.querySelector(".bw").textContent = "dl " + d.pct + "%";
       ai.prog = ai.prog || {}; ai.progAt = ai.progAt || {};
-      ai.prog[e?.name || from] = d.pct; ai.progAt[e?.name || from] = Date.now(); loadCardRender();
+      ai.prog[nm] = d.pct; ai.progAt[nm] = Date.now();
+      loadCardRender();
+      if (ai.role === "host") publishProg();
       break;
+    }
     case "ai-ready":
       ai.readyPeers.add(from);
       if (e?.card) e.card.querySelector(".bw").textContent = "ready";
