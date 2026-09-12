@@ -1,0 +1,32 @@
+url: http://127.0.0.1:5180
+name: Worker onboard handshake
+---
+- extendedWaitUntil:
+    visible:
+      text: "Trusted Swarm"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: "Offer this device"
+    direction: DOWN
+    timeout: 8000
+- tapOn:
+    text: "Offer this device"
+- extendedWaitUntil:
+    visible:
+      text: "Calibrate"
+    timeout: 10000
+- tapOn:
+    text: "Calibrate"
+- extendedWaitUntil:
+    visible:
+      text: "Continue as worker"
+    timeout: 30000
+- tapOn:
+    text: "Continue as worker"
+- extendedWaitUntil:
+    visible:
+      text: "Queue a completion"
+    timeout: 15000
+- assertTrue:
+    condition: "window.location.search.includes('role=worker')"

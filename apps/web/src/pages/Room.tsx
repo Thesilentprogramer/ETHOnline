@@ -25,7 +25,10 @@ export function Room() {
   }, [startedAt])
 
   const src = useMemo(
-    () => runtimeRoomUrl({ code: role === 'worker' ? appliedCode : undefined }),
+    () => runtimeRoomUrl({
+      code: role === 'worker' ? appliedCode : undefined,
+      join: role === 'worker' && !!appliedCode,
+    }),
     [role, appliedCode],
   )
 
@@ -41,9 +44,9 @@ export function Room() {
 
   return (
     <Shell>
-      <main className="flex min-h-[calc(100svh-6rem)] flex-col">
-        <div className="liquid-glass mx-4 mb-0 grid gap-3 rounded-2xl px-4 py-3 md:grid-cols-[1fr_auto] md:items-center">
-          <div className="flex flex-wrap gap-3 text-xs text-white/60">
+      <main className="flex min-h-[calc(100svh-var(--header-h))] flex-col">
+        <div className="gutter liquid-glass mb-0 grid gap-3 rounded-none py-3 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="flex flex-wrap gap-3 text-xs tracking-normal text-white/60">
             <Metric k="role" v={cap ? roleLabel(cap.role) : 'unprobed'} />
             <Metric k="score" v={cap ? String(cap.score) : '—'} />
             <Metric k="tab" v={role} />
@@ -60,7 +63,7 @@ export function Room() {
         </div>
 
         {role === 'worker' && (
-          <form onSubmit={applyJoin} className="flex gap-2 px-4 py-3">
+          <form onSubmit={applyJoin} className="gutter flex gap-2 py-3">
             <Input
               placeholder="ROOM CODE"
               value={joinCode}
@@ -74,7 +77,7 @@ export function Room() {
         )}
 
         {!cap && (
-          <Card className="m-4">
+          <Card className="gutter mx-0 my-4">
             No capability report in this tab.{' '}
             <Link to={`/onboard?intent=${role}`} className="underline">
               Run onboarding
@@ -91,7 +94,7 @@ export function Room() {
           onLoad={() => setIframeStatus('runtime ready')}
         />
 
-        <footer className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs text-white/50">
+        <footer className="gutter flex flex-wrap items-center gap-3 py-3 text-xs tracking-normal text-white/50">
           <span>
             Caps: {controls.maxMinutes} min · {controls.memoryCapGb} GB · unfocused{' '}
             {controls.workUnfocused ? 'on' : 'off'}

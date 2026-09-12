@@ -3,13 +3,15 @@ import type { ButtonHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-full font-medium text-sm tracking-wide transition-all duration-300 disabled:pointer-events-none disabled:opacity-50',
+  'press inline-flex items-center justify-center gap-2 rounded-full font-medium text-sm tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-white text-black hover:bg-white/90 button-glow',
-        outline: 'liquid-glass border-0 bg-white/5 text-white hover:bg-white/10',
-        ghost: 'bg-transparent text-white/80 hover:text-white',
+        default: 'btn-default bg-white text-black',
+        outline: 'btn-outline liquid-glass border-0 bg-white/5 text-white',
+        ghost: 'btn-ghost bg-transparent text-white/80',
+        light: 'btn-light bg-[#161410] text-[#f6f4ef]',
+        lightOutline: 'btn-light-outline border border-[#161410]/15 bg-transparent text-[#161410]',
       },
       size: {
         default: 'px-8 py-3.5',

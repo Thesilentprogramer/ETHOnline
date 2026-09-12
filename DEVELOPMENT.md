@@ -90,6 +90,10 @@ Starting a model from any device now keeps the load card open on **every** conne
 
 `runtime/p2p.html` now uses the same Serene tokens as the Vite landing: `#0a0608`, Dancing Script wordmark, Instrument Serif display, Inter UI, white pill CTAs, liquid-glass panels. Room behavior (PeerJS, layers, download progress) is unchanged.
 
+### Marketplace + local OpenAI API (Sep 12, 2026)
+
+Hybrid product: light marketing `/` (post a task / offer this device), dark Serene `/market` with a room-scoped completion queue. First visit creates a room and parks the task until the cluster can start. The same OpenAI `POST /v1/chat/completions` contract is what the marketplace and a localhost bridge (`node runtime/serve.mjs`, `127.0.0.1:11435`) enqueue onto. The host tab connects *out* to the bridge; Vercel still does not infer.
+
 ---
 
 
@@ -161,6 +165,7 @@ Safari/iOS may be classified as light-worker or observer. Chrome/Edge desktop ar
 - [x] **Capability onboarding + four roles**
 - [x] **First-party inference runtime** (`runtime/`) + default model path
 - [x] **Local-tab room (upstream runtime)**
+- [x] **Marketplace queue + localhost OpenAI `/v1` bridge**
 
 ---
 

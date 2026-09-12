@@ -13,7 +13,7 @@ Browsers in a room form a WebRTC mesh (PeerJS signaling for the introduction onl
 | `ai-reset` | host → all | new conversation: caches and states back to position 0 |
 | `ai-genstart` / `ai-token` / `ai-gendone` | host → all | mirror the question and streamed answer to every screen. Under `ai-visibility` `host`/`asker`, the text goes only to the allowed screens; the others get `ai-genstart`/`ai-gendone` with `hidden: true` (no `ai-token`), so every Send box still locks and unlocks |
 | `ai-visibility {mode}` | host → all | who sees the chat: `all`, `host` (only the host's screen) or `asker` (the host and the peer that asked, by peer id). Sent on change and to every device that joins while it is not `all`. Every device still computes the answer; this only decides which screens get the text |
-| `ai-ask` / `ai-busy` | guest → host | anyone in the room can ask; one generation at a time |
+| `ai-ask` / `ai-enqueue` / `ai-queue` | guest → host / host → all | anyone in the room (or the localhost bridge) can enqueue a chat-completion; the host drains one at a time. `ai-busy` is still understood by older peers |
 
 ## Compute frames
 

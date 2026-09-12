@@ -52,6 +52,143 @@ const conns = new Map();
 // host only: roster of member peer ids -> {name, meta}
 const roster = new Map();
 
+const JOBS_KEY = "trusted-swarm-jobs";
+const PARENT = "trusted-swarm";
+const BRIDGE_URL = "ws://127.0.0.1:11435/bridge";
+let jobs = [];
+let bridgeWs = null;
+
+function tellParent(msg) {
+  try { if (parent !== window) parent.postMessage({ channel: PARENT, ...msg }, "*"); } catch {}
+}
+
+function lastUserText(messages) {
+  if (!Array.isArray(messages)) return String(messages || "").trim();
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user" && String(messages[i].content || "").trim())
+      return String(messages[i].content).trim();
+  }
+  return "";
+}
+
+function publicJobs() {
+  return jobs.map(({ askerId, stream, ...j }) => j);
+}
+
+function persistJobs() {
+  try { localStorage.setItem(JOBS_KEY, JSON.stringify(publicJobs().slice(-40))); } catch {}
+  tellParent({ t: "queue", jobs: publicJobs() });
+  if (isHost) broadcastAll({ t: "ai-queue", jobs: publicJobs() });
+}
+
+function loadHostJobs() {
+  if (!isHost) return;
+  try {
+    const raw = JSON.parse(localStorage.getItem(JOBS_KEY) || "[]");
+    if (Array.isArray(raw)) {
+      for (const j of raw) {
+        if (!j?.id || jobs.some((x) => x.id === j.id)) continue;
+        jobs.push({ ...j, status: j.status === "running" ? "waiting" : j.status, askerId: peer?.id });
+      }
+    }
+  } catch {}
+  persistJobs();
+}
+
+function hostPeerId() {
+  if (isHost) return peer?.id;
+  if (ai.hostId) return ai.hostId;
+  return roomCode ? PREFIX + roomCode : null;
+}
+
+function enqueueJob(job) {
+  if (!job) return;
+  const messages = job.messages || [{ role: "user", content: job.text || "" }];
+  const next = {
+    id: job.id || ("chatcmpl-" + rand(12)),
+    model: job.model || "",
+    messages,
+    status: "waiting",
+    reply: job.reply || "",
+    source: job.source || "room",
+    createdAt: job.createdAt || Date.now(),
+    askerId: job.askerId || peer?.id,
+    stream: job.stream,
+  };
+  if (!isHost) {
+    const hid = hostPeerId();
+    if (hid) sendTo(hid, { t: "ai-enqueue", job: next });
+    return;
+  }
+  if (jobs.some((j) => j.id === next.id)) return;
+  jobs.push(next);
+  persistJobs();
+  drainJobs();
+}
+
+async function drainJobs() {
+  if (!isHost || !ai.engine || ai.busy === "gen") return;
+  const job = jobs.find((j) => j.status === "waiting");
+  if (!job) return;
+  const text = lastUserText(job.messages);
+  if (!text) { job.status = "failed"; job.error = "empty prompt"; persistJobs(); drainJobs(); return; }
+  job.status = "running";
+  persistJobs();
+  const api = job.source === "api";
+  if (api) toast("a local client asked\u2026");
+  try {
+    await aiGenerate(text, job.source, job.askerId, {
+      onToken(piece) {
+        job.reply = (job.reply || "") + piece;
+        if (api) bridgeSend({ t: "delta", id: job.id, content: piece });
+      },
+      onDone(reply, err) {
+        job.reply = reply || job.reply || "";
+        job.status = err ? "failed" : "done";
+        if (err) job.error = err;
+        persistJobs();
+        if (api) bridgeSend({ t: "done", id: job.id, content: job.reply, error: err || null });
+      },
+    });
+  } catch (e) {
+    job.status = "failed";
+    job.error = e.message;
+    persistJobs();
+    if (api) bridgeSend({ t: "done", id: job.id, error: e.message });
+  }
+  if (job.status === "running") {
+    job.status = "waiting";
+    persistJobs();
+    return;
+  }
+  drainJobs();
+}
+
+function bridgeSend(msg) {
+  if (bridgeWs?.readyState === 1) bridgeWs.send(JSON.stringify(msg));
+}
+
+function connectBridge() {
+  if (!isHost || bridgeWs) return;
+  let ws;
+  try { ws = new WebSocket(BRIDGE_URL); } catch { setTimeout(connectBridge, 3000); return; }
+  bridgeWs = ws;
+  ws.onopen = () => toast("localhost API connected");
+  ws.onclose = () => { if (bridgeWs === ws) bridgeWs = null; setTimeout(connectBridge, 3000); };
+  ws.onerror = () => {};
+  ws.onmessage = (ev) => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch { return; }
+    if (d.t === "completion") enqueueJob({ id: d.id, model: d.model, messages: d.messages, source: "api", stream: d.stream });
+  };
+}
+
+window.addEventListener("message", (ev) => {
+  const d = ev.data;
+  if (!d || d.channel !== PARENT) return;
+  if (d.t === "enqueue" && d.job) enqueueJob({ ...d.job, source: d.job.source || "market" });
+});
+
 // --- GPU capability probe (runs at page load so the join screen can offer
 // contribution presets) ---
 async function probeGPU() {
@@ -171,6 +308,7 @@ function updateCluster() {
   const mem = all.reduce((s, m) => s + (m?.budgetGB || m?.maxBufGB || 0), 0);
   $("cluster-summary").textContent =
     `${all.length} device${all.length > 1 ? "s" : ""} \u00b7 ${gpus} WebGPU \u00b7 ${pledged.toFixed(1)} GB pledged`;
+  tellParent({ t: "cluster", summary: $("cluster-summary").textContent });
 }
 
 function enterRoom() {
@@ -187,6 +325,10 @@ function enterRoom() {
   $("ai-panel").style.display = "flex";
   aiStatus("");
   $("ai-empty").textContent = "pick a model and press start, from any device";
+  if (isHost) loadHostJobs();
+  tellParent({ t: "room", code: roomCode });
+  tellParent({ t: "ready" });
+  connectBridge();
   const selfCard = document.querySelector(".peer-card.self");
   if (selfCard && myMeta.webgpu) {
     const row = document.createElement("div");
@@ -376,7 +518,10 @@ $("gb-plus").addEventListener("click", () => stepGB(1));
 // --- join / create ---
 async function start(create) {
   myName = $("name-input").value.trim() || (create ? "host" : "peer") + "-" + rand(2);
-  const code = create ? rand(4) : $("code-input").value.trim().toUpperCase();
+  const qs = new URLSearchParams(location.search);
+  const code = create
+    ? (qs.get("code") || $("code-input").value || rand(4)).trim().toUpperCase()
+    : $("code-input").value.trim().toUpperCase();
   if (!code) { $("join-status").textContent = "enter a room code"; return; }
   $("create-btn").disabled = $("join-btn").disabled = true;
   $("join-status").textContent = "connecting to signaling…";
@@ -484,8 +629,18 @@ function copyRoomLink() {
 }
 $("room-badge").addEventListener("click", copyRoomLink);
 {
-  const code = (new URLSearchParams(location.search).get("code") || "").trim().toUpperCase();
+  const qs = new URLSearchParams(location.search);
+  const code = (qs.get("code") || "").trim().toUpperCase();
   if (code) $("code-input").value = code;
+  if (qs.get("host") === "1" && code) {
+    if (!$("name-input").value.trim()) $("name-input").value = "host";
+    keepAwake();
+    start(true);
+  } else if (qs.get("join") === "1" && code) {
+    if (!$("name-input").value.trim()) $("name-input").value = "peer";
+    keepAwake();
+    start(false);
+  }
 }
 
 // ================= distributed inference =================
@@ -945,6 +1100,7 @@ function aiMaybeReady() {
   $("ai-prompt").focus();
   broadcastAll({ t: "ai-ready-all" });
   mascot("Cluster online! Ask anything. Everyone in the room can.");
+  drainJobs();
 }
 
 // run one token through the whole pipeline, returns logits
@@ -986,7 +1142,7 @@ function sendChat(msg, askerId) {
   for (const id of full) sendTo(id, msg);
   if (msg.t !== "ai-token") for (const id of hidden) sendTo(id, { t: msg.t, name: msg.name, stats: msg.stats, hidden: true });
 }
-async function aiGenerate(textArg, who, askerId = peer.id) {
+async function aiGenerate(textArg, who, askerId = peer.id, hooks = {}) {
   const text = (textArg ?? $("ai-prompt").value).trim();
   const asker = who || myName;
   if (!text || ai.busy === "gen" || !ai.engine) return;
@@ -1066,6 +1222,7 @@ async function aiGenerate(textArg, who, askerId = peer.id) {
       count++;
       chatBotUpdate(reply);
       sendChat({ t: "ai-token", text: piece }, askerId);
+      hooks.onToken?.(piece);
       aiStatus(`generating… ${count} tok · ${(count / ((performance.now() - t0) / 1000)).toFixed(1)} tok/s`);
     };
     if (ai.engine.mtp && ai.engine.specStep) {
@@ -1155,12 +1312,14 @@ async function aiGenerate(textArg, who, askerId = peer.id) {
     const stats = `${count} tok · ${(count / secs).toFixed(1)} tok/s · ${ai.chain.length + 1} devices${capped ? ` · stopped: context full (${MAX_SEQ} tokens)` : ""}`;
     chatBotEnd(reply, stats);
     sendChat({ t: "ai-gendone", stats }, askerId);
+    hooks.onDone?.(reply);
     mascot("Done. Anyone in the room can ask the next one.");
     aiStatus(`ready — prefill ${((t0 - tPre) / 1000).toFixed(1)}s, ${stats}`);
   } catch (err) {
     aiStatus("generation failed: " + err.message);
     chatBotEnd("\u26a0 " + err.message, "");
-    sendChat({ t: "ai-gendone", stats: "failed: " + err.message }, askerId);   // unlock everyone's send box
+    sendChat({ t: "ai-gendone", stats: "failed: " + err.message }, askerId);
+    hooks.onDone?.("", err.message);   // unlock everyone's send box
   }
   ai.busy = false;
   $("ai-send").disabled = false;
@@ -1318,9 +1477,15 @@ async function aiOnData(from, d) {
       mascot("Cluster online! Type a question, the whole room answers.");
       break;
     case "ai-ask":
-      if (ai.role !== "host") break;
-      if (ai.busy === "gen") { sendTo(from, { t: "ai-busy" }); break; }
-      aiGenerate(d.text, d.name, from);
+      if (!isHost) break;
+      enqueueJob({ messages: [{ role: "user", content: d.text }], source: d.name || "peer", askerId: from });
+      break;
+    case "ai-enqueue":
+      if (!isHost) break;
+      enqueueJob({ ...(d.job || {}), askerId: from, source: d.job?.source || d.name || "peer" });
+      break;
+    case "ai-queue":
+      tellParent({ t: "queue", jobs: d.jobs });
       break;
     case "ai-busy": toast("the swarm is still answering, try again in a moment"); break;
   }
@@ -1339,10 +1504,13 @@ $("cache-clear").addEventListener("click", async (ev) => {
 function aiSubmit() {
   const text = $("ai-prompt").value.trim();
   if (!text) return;
-  if (ai.role === "host") { aiGenerate(); return; }
+  $("ai-prompt").value = "";
+  if (isHost) {
+    enqueueJob({ messages: [{ role: "user", content: text }], source: myName });
+    return;
+  }
   const hostId = ai.hostId;
   if (!conns.has(hostId)) { toast("not connected to the host"); return; }
-  $("ai-prompt").value = "";
   sendTo(hostId, { t: "ai-ask", text, name: myName });
 }
 $("ai-send").addEventListener("click", aiSubmit);

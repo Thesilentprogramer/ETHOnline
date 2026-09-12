@@ -1,30 +1,54 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 
-const ease = 'cubic-bezier(0.22, 1, 0.36, 1)'
-
-const links = [
-  { label: 'About', to: '/#quote' },
+const appLinks = [
+  { label: 'Market', to: '/market' },
   { label: 'Onboard', to: '/onboard' },
   { label: 'Room', to: '/room' },
-  { label: 'Contact', to: '/#contact' },
+  { label: 'API', to: '/#api' },
 ]
 
-export function Shell({ children, overlay = false }: { children: ReactNode; overlay?: boolean }) {
+const marketingLinks = [
+  { label: 'How', to: '/#quote' },
+  { label: 'API', to: '/#api' },
+]
+
+export function Shell({
+  children,
+  overlay = false,
+  tone = 'dark',
+}: {
+  children: ReactNode
+  overlay?: boolean
+  tone?: 'dark' | 'light'
+}) {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
+  const light = tone === 'light'
+  const links = light ? marketingLinks : appLinks
+
+  useEffect(() => {
+    document.documentElement.dataset.tone = light ? 'light' : 'dark'
+    return () => {
+      delete document.documentElement.dataset.tone
+    }
+  }, [light])
 
   return (
-    <div className="min-h-svh bg-[#0a0608] text-white">
+    <div className={cn('min-h-svh', light ? 'bg-[#f6f4ef] text-[#161410]' : 'bg-[#0a0608] text-white')}>
       <header
         className={cn(
-          'fixed top-0 right-0 left-0 z-50 flex items-center justify-between px-6 py-5 md:px-12',
-          overlay ? 'bg-transparent' : 'bg-[#0a0608]/80 backdrop-blur-md',
+          'gutter fixed top-0 right-0 left-0 z-50 flex items-center justify-between py-5',
+          overlay && !light
+            ? 'bg-transparent'
+            : light
+              ? 'border-b border-[#161410]/8 bg-[#f6f4ef]/70 backdrop-blur-[20px]'
+              : 'bg-[#0a0608]/55 backdrop-blur-[20px]',
         )}
       >
-        <Link to="/" className="font-script text-2xl text-white md:text-3xl">
+        <Link to="/" className={cn('font-script text-2xl md:text-3xl', light ? 'text-[#161410]' : 'text-white')}>
           Trusted Swarm
         </Link>
 
@@ -34,7 +58,10 @@ export function Shell({ children, overlay = false }: { children: ReactNode; over
               <a
                 key={l.label}
                 href={l.to}
-                className="text-sm tracking-wide text-white/80 hover:text-white"
+                className={cn(
+                  'text-sm tracking-wide transition-[color] duration-150 ease-[ease]',
+                  light ? 'text-[#161410]/70' : 'text-white/80',
+                )}
               >
                 {l.label}
               </a>
@@ -44,8 +71,9 @@ export function Shell({ children, overlay = false }: { children: ReactNode; over
                 to={l.to}
                 className={({ isActive }) =>
                   cn(
-                    'text-sm tracking-wide text-white/80 hover:text-white',
-                    isActive && pathname === l.to && 'text-white',
+                    'text-sm tracking-wide transition-[color] duration-150 ease-[ease]',
+                    light ? 'text-[#161410]/70' : 'text-white/80',
+                    isActive && pathname === l.to && (light ? 'text-[#161410]' : 'text-white'),
                   )
                 }
               >
@@ -55,35 +83,39 @@ export function Shell({ children, overlay = false }: { children: ReactNode; over
           )}
         </nav>
 
-        <Link to="/onboard?intent=host" className={cn(buttonVariants(), 'hidden md:inline-flex')}>
-          Create Swarm
+        <Link
+          to="/market"
+          className={cn(buttonVariants({ variant: light ? 'light' : 'default', size: 'sm' }), 'hidden md:inline-flex')}
+        >
+          Post a task
         </Link>
 
         <button
           type="button"
-          className="relative h-10 w-10 md:hidden"
+          className="press relative h-10 w-10 md:hidden"
           aria-label={open ? 'Close menu' : 'Open menu'}
+          aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
           <span
-            className="absolute top-[11px] left-2 block h-px w-6 bg-white"
+            className={cn('absolute top-[11px] left-2 block h-px w-6', light ? 'bg-[#161410]' : 'bg-white')}
             style={{
-              transition: `transform 400ms ${ease}, opacity 400ms ${ease}`,
+              transition: 'transform 160ms var(--ease-out), opacity 160ms var(--ease-out)',
               transform: open ? 'translateY(9px) rotate(45deg)' : 'none',
             }}
           />
           <span
-            className="absolute top-[19px] left-2 block h-px w-6 bg-white"
+            className={cn('absolute top-[19px] left-2 block h-px w-6', light ? 'bg-[#161410]' : 'bg-white')}
             style={{
-              transition: `transform 400ms ${ease}, opacity 400ms ${ease}`,
+              transition: 'transform 160ms var(--ease-out), opacity 160ms var(--ease-out)',
               opacity: open ? 0 : 1,
-              transform: open ? 'scaleX(0)' : 'none',
+              transform: open ? 'scaleX(0.96)' : 'none',
             }}
           />
           <span
-            className="absolute top-[27px] left-2 block h-px w-6 bg-white"
+            className={cn('absolute top-[27px] left-2 block h-px w-6', light ? 'bg-[#161410]' : 'bg-white')}
             style={{
-              transition: `transform 400ms ${ease}, opacity 400ms ${ease}`,
+              transition: 'transform 160ms var(--ease-out), opacity 160ms var(--ease-out)',
               transform: open ? 'translateY(-9px) rotate(-45deg)' : 'none',
             }}
           />
@@ -91,22 +123,21 @@ export function Shell({ children, overlay = false }: { children: ReactNode; over
       </header>
 
       <div
+        data-open={open ? '' : undefined}
         className={cn(
-          'fixed inset-y-0 right-0 z-40 w-[85%] max-w-[340px] border-l border-white/10 bg-[#0a0608]/95 backdrop-blur-xl md:hidden',
-          'flex flex-col px-8 pt-24 pb-10',
+          'drawer-panel fixed inset-y-0 right-0 z-40 flex w-[85%] max-w-[340px] flex-col pt-[var(--header-h)] pb-10 md:hidden',
+          'gutter',
+          light ? 'border-l border-[#161410]/10 bg-[#f6f4ef]/92 backdrop-blur-[20px]' : 'border-l border-white/10 bg-[#0a0608]/90 backdrop-blur-[20px]',
+          !open && 'pointer-events-none',
         )}
-        style={{
-          transition: `transform 500ms ${ease}`,
-          transform: open ? 'translateX(0)' : 'translateX(100%)',
-        }}
+        style={{ transform: open ? 'translateX(0)' : 'translateX(100%)' }}
       >
         {links.map((l, i) => {
-          const className = 'py-3 text-lg text-white/80'
+          const className = cn('drawer-link py-3 text-lg', light ? 'text-[#161410]/80' : 'text-white/80')
           const style = {
-            transition: `opacity 500ms ${ease}, transform 500ms ${ease}`,
-            transitionDelay: open ? `${150 + i * 75}ms` : '0ms',
+            transitionDelay: open ? `${40 + i * 40}ms` : '0ms',
             opacity: open ? 1 : 0,
-            transform: open ? 'translateX(0)' : 'translateX(16px)',
+            transform: open ? 'translateX(0)' : 'translateX(12px)',
           }
           return l.to.startsWith('/#') ? (
             <a key={l.label} href={l.to} onClick={() => setOpen(false)} className={className} style={style}>
@@ -119,16 +150,11 @@ export function Shell({ children, overlay = false }: { children: ReactNode; over
           )
         })}
         <Link
-          to="/onboard?intent=host"
+          to="/market"
           onClick={() => setOpen(false)}
-          className={cn(buttonVariants(), 'mt-auto')}
-          style={{
-            transition: `opacity 500ms ${ease}`,
-            transitionDelay: open ? '450ms' : '0ms',
-            opacity: open ? 1 : 1,
-          }}
+          className={cn(buttonVariants({ variant: light ? 'light' : 'default' }), 'mt-auto')}
         >
-          Create Swarm
+          Post a task
         </Link>
       </div>
 
@@ -141,7 +167,7 @@ export function Shell({ children, overlay = false }: { children: ReactNode; over
         />
       )}
 
-      <div className={overlay ? '' : 'pt-24'}>{children}</div>
+      <div className={overlay ? '' : 'pt-[var(--header-h)]'}>{children}</div>
     </div>
   )
 }

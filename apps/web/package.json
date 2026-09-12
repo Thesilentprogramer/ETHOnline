@@ -9,15 +9,18 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "check:capability": "npx --yes tsx src/swarm/capability.check.ts"
+    "check:capability": "npx --yes tsx src/swarm/capability.check.ts",
+    "check:openai": "npx --yes tsx src/swarm/openai.check.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.44.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {

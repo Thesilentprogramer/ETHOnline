@@ -1,0 +1,23 @@
+url: http://127.0.0.1:5180
+name: Landing CTAs
+---
+- extendedWaitUntil:
+    visible:
+      text: "Trusted Swarm"
+    timeout: 20000
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      text: "Offer this device"
+    direction: DOWN
+    timeout: 8000
+- assertVisible:
+    text: "Trusted Swarm"
+- assertVisible:
+    text: "Post a task"
+- assertVisible:
+    text: "Offer this device"
+- assertVisible:
+    text: "New task"
+- assertVisible:
+    text: "Post a task\\..*"
