@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Shell } from '@/components/Shell'
 import { probeDevice, SCORE_WEIGHTS, type CapabilityReport } from '@/swarm/capability.ts'
-import { loadControls, roleLabel, saveCapability, saveControls } from '@/swarm/session.ts'
+import { loadControls, loadEns, roleLabel, saveCapability, saveControls, saveEns } from '@/swarm/session.ts'
 
 type Step = 'why' | 'probe' | 'score'
 
@@ -24,12 +24,14 @@ export function Onboard() {
   const [maxMinutes, setMaxMinutes] = useState(30)
   const [memoryCapGb, setMemoryCapGb] = useState(4)
   const [workUnfocused, setWorkUnfocused] = useState(false)
+  const [ens, setEns] = useState('')
 
   useEffect(() => {
     const saved = loadControls()
     setMaxMinutes(saved.maxMinutes)
     setMemoryCapGb(saved.memoryCapGb)
     setWorkUnfocused(saved.workUnfocused)
+    setEns(loadEns())
   }, [])
 
   useEffect(() => {
@@ -72,6 +74,7 @@ export function Onboard() {
     if (!report) return
     saveCapability(report)
     saveControls({ maxMinutes, memoryCapGb, workUnfocused })
+    saveEns(ens)
     navigate(marketQuery())
   }
 
@@ -86,8 +89,8 @@ export function Onboard() {
           <>
             <h1 className="font-instrument mt-3 text-4xl md:text-5xl">This machine can hold layers</h1>
             <p className="mt-4 max-w-xl tracking-normal text-white/70">
-              We measure WebGPU, memory headroom, and WebRTC so the room can schedule work. Not
-              identity — no MAC, serial, or fingerprint.
+              We measure WebGPU, memory headroom, and WebRTC so the room can schedule work. No MAC,
+              serial, or fingerprint. You can paste an ENS subname later if you want to earn.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <Button
@@ -168,6 +171,25 @@ export function Onboard() {
                 <Row k="Buffer cap" v={`${report.maxBufGB} GB`} />
                 <Row k="Memory headroom" v={`${report.memoryHeadroomGb} GB`} />
                 <Row k="Phone" v={report.isPhone ? 'yes (light-worker max)' : 'no'} />
+              </Card>
+
+              <Card>
+                <h2 className="font-instrument text-2xl">ENS name</h2>
+                <p className="mt-2 text-sm tracking-normal text-white/55">
+                  Paste a <span className="text-white/80">trustedswarm.eth</span> subname to earn on paid
+                  jobs. Leave blank to join without credits.
+                </p>
+                <label className="mt-4 block text-sm tracking-normal text-white/70">
+                  Subname
+                  <Input
+                    className="mt-1"
+                    placeholder="coordinator.trustedswarm.eth"
+                    value={ens}
+                    onChange={(e) => setEns(e.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </label>
               </Card>
 
               <Card>

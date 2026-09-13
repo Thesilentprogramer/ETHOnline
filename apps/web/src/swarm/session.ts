@@ -11,6 +11,19 @@ export type SessionControls = {
 }
 
 const CONTROLS_KEY = 'trusted-swarm-controls'
+const ENS_KEY = 'trusted-swarm-ens'
+
+export function saveEns(name: string) {
+  sessionStorage.setItem(ENS_KEY, name.trim())
+}
+
+export function loadEns() {
+  try {
+    return (sessionStorage.getItem(ENS_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
 
 export function saveCapability(report: CapabilityReport) {
   sessionStorage.setItem(CAPABILITY_STORAGE_KEY, JSON.stringify(report))
