@@ -16,7 +16,7 @@
     "bench:breakdown": "deno run --unstable-webgpu --allow-read --allow-env benchmarks/bench_breakdown.js",
     "serve": "npx -y serve -l 8080 .",
     "serve:api": "node serve.mjs",
-    "check:serve": "node serve.check.mjs",
+    "check:serve": "node serve.check.mjs && node pay.check.mjs && node x402.check.mjs && node ens.check.mjs && node payout.check.mjs",
     "deploy:staging": "scripts/deploy-staging.sh",
     "e2e": "node tests/e2e/room.mjs"
   },
@@ -26,5 +26,9 @@
   "devDependencies": {
     "peer": "^1.0.2",
     "playwright": "1.49.1"
+  },
+  "dependencies": {
+    "@hiero-ledger/sdk": "^2.88.0",
+    "viem": "^2.56.5"
   }
 }

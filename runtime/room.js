@@ -75,6 +75,20 @@ function publicJobs() {
   return jobs.map(({ askerId, stream, ...j }) => j);
 }
 
+function clusterPeers() {
+  return [
+    { id: peer?.id || "host", name: myName, gb: myMeta.contribGB || 0, host: true, ens: myMeta.ens || "" },
+    ...[...members.entries()].map(([id, m]) => ({
+      id,
+      name: m.name,
+      gb: m.meta?.contribGB || 0,
+      host: false,
+      observer: !m.meta?.webgpu,
+      ens: m.meta?.ens || "",
+    })),
+  ];
+}
+
 function persistJobs() {
   try { localStorage.setItem(JOBS_KEY, JSON.stringify(publicJobs().slice(-40))); } catch {}
   tellParent({ t: "queue", jobs: publicJobs() });
@@ -111,6 +125,7 @@ function enqueueJob(job) {
     status: "waiting",
     reply: job.reply || "",
     source: job.source || "room",
+    paid: !!job.paid,
     createdAt: job.createdAt || Date.now(),
     askerId: job.askerId || peer?.id,
     stream: job.stream,
@@ -135,7 +150,7 @@ async function drainJobs() {
   job.status = "running";
   persistJobs();
   const api = job.source === "api";
-  if (api) toast("a local client asked\u2026");
+  if (api) toast(job.paid ? "a local client paid\u2026" : "a local client asked\u2026");
   try {
     await aiGenerate(text, job.source, job.askerId, {
       onToken(piece) {
@@ -147,14 +162,14 @@ async function drainJobs() {
         job.status = err ? "failed" : "done";
         if (err) job.error = err;
         persistJobs();
-        if (api) bridgeSend({ t: "done", id: job.id, content: job.reply, error: err || null });
+        if (api) bridgeSend({ t: "done", id: job.id, content: job.reply, error: err || null, cluster: clusterPeers() });
       },
     });
   } catch (e) {
     job.status = "failed";
     job.error = e.message;
     persistJobs();
-    if (api) bridgeSend({ t: "done", id: job.id, error: e.message });
+    if (api) bridgeSend({ t: "done", id: job.id, error: e.message, cluster: clusterPeers() });
   }
   if (job.status === "running") {
     job.status = "waiting";
@@ -173,13 +188,24 @@ function connectBridge() {
   let ws;
   try { ws = new WebSocket(BRIDGE_URL); } catch { setTimeout(connectBridge, 3000); return; }
   bridgeWs = ws;
-  ws.onopen = () => toast("localhost API connected");
+  ws.onopen = () => {
+    toast("localhost API connected");
+    bridgeSend({ t: "ens", ens: myMeta.ens || "" });
+  };
   ws.onclose = () => { if (bridgeWs === ws) bridgeWs = null; setTimeout(connectBridge, 3000); };
   ws.onerror = () => {};
   ws.onmessage = (ev) => {
     let d;
     try { d = JSON.parse(ev.data); } catch { return; }
-    if (d.t === "completion") enqueueJob({ id: d.id, model: d.model, messages: d.messages, source: "api", stream: d.stream });
+    if (d.t === "completion") enqueueJob({ id: d.id, model: d.model, messages: d.messages, source: "api", stream: d.stream, paid: !!d.paid });
+    if (d.t === "receipt" && d.receipt) {
+      const job = jobs.find((j) => j.id === d.id);
+      if (job) {
+        job.receipt = d.receipt;
+        persistJobs();
+      }
+      tellParent({ t: "receipt", id: d.id, receipt: d.receipt });
+    }
   };
 }
 
@@ -526,6 +552,7 @@ async function start(create) {
   $("create-btn").disabled = $("join-btn").disabled = true;
   $("join-status").textContent = "connecting to signaling…";
   myMeta = await metaPromise;
+  myMeta.ens = (qs.get("ens") || (typeof sessionStorage !== "undefined" && sessionStorage.getItem("trusted-swarm-ens")) || "").trim();
   const gbIn = parseFloat($("join-gb").value);
   myMeta.contribGB = Math.max(myMeta.phone ? 0.5 : 1, gbIn > 0 ? gbIn : (myMeta.contribGB || 1));
 

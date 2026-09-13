@@ -1,11 +1,26 @@
 #!/usr/bin/env node
 // Local OpenAI-compatible bridge. The host tab connects out to /bridge;
-// curl and other clients POST /v1/chat/completions. No extra deps.
+// curl and other clients POST /v1/chat/completions. Hedera x402 is env-gated.
 import http from "node:http";
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadDotenv } from "./env.js";
 import { MODELS } from "./room/models.js";
+import {
+  payConfig,
+  paymentRequirements,
+  x402Challenge,
+  parsePaymentHeader,
+  splitCredits,
+  makeReceipt,
+} from "./pay.js";
+import { loadFeePayer, settlePayment } from "./x402.js";
+import { submitTopicMessage } from "./hcs.mjs";
+import { ensConfig, readHederaText, sepoliaGetText } from "./ens.js";
+import { loadSigningKey, settleCredits, AUTO_TINYBAR, DAILY_TINYBAR } from "./payout.js";
+
+loadDotenv();
 
 const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const HOST = "127.0.0.1";
@@ -108,7 +123,19 @@ if (isMain) listen();
 
 function listen() {
   let hostSock = null;
+  let hostEns = "";
   const pending = new Map();
+  const cfg = payConfig();
+  const ens = cfg ? ensConfig() : null;
+  let feePayer = "";
+  let signingKey = cfg?.privateKey || "";
+  let daySpent = 0;
+  if (cfg) {
+    loadFeePayer(cfg.facilitator, cfg.network).then((id) => { feePayer = id; }).catch(() => {});
+    loadSigningKey().then((k) => { if (k) signingKey = k; }).catch((e) => {
+      console.log(`  ledger ring: ${e instanceof Error ? e.message : "decrypt failed"}`);
+    });
+  }
 
   function sendHost(obj) {
     if (!hostSock) return false;
@@ -145,10 +172,122 @@ function listen() {
     const allow = corsOrigin(origin);
     if (allow) {
       h["access-control-allow-origin"] = allow;
-      h["access-control-allow-headers"] = "authorization, content-type";
+      h["access-control-allow-headers"] = "authorization, content-type, x-payment, payment-signature";
       h["access-control-allow-methods"] = "GET, POST, OPTIONS";
+      h["access-control-expose-headers"] = "payment-required";
     }
     return h;
+  }
+
+  function requirements() {
+    return paymentRequirements(cfg, feePayer);
+  }
+
+  function write402(res, origin, extra = {}) {
+    const challenge = { ...x402Challenge(requirements()), ...extra };
+    const encoded = Buffer.from(JSON.stringify({ x402Version: 2, accepts: challenge.accepts })).toString("base64");
+    res.writeHead(402, { ...jsonHead(origin), "payment-required": encoded });
+    res.end(JSON.stringify(challenge));
+  }
+
+  async function assertHostIdentity() {
+    if (!hostEns) throw new Error("host ens required");
+    const got = await readHederaText(hostEns, ens, sepoliaGetText);
+    if (!got.ok || got.account !== cfg.accountId) {
+      throw new Error(got.ok ? "hedera text does not match payTo" : got.error);
+    }
+  }
+
+  async function eligiblePeers(cluster) {
+    const list = Array.isArray(cluster) ? cluster : [];
+    const out = [];
+    for (const p of list) {
+      if (p.host) { out.push({ ...p, account: cfg.accountId }); continue; }
+      if (p.observer || !(Number(p.gb) > 0)) continue;
+      const got = await readHederaText(p.ens, ens, sepoliaGetText);
+      if (got.ok) out.push({ ...p, account: got.account });
+    }
+    return out;
+  }
+
+  async function gatePay(req, res, origin) {
+    if (!cfg) return { paid: null };
+    const raw = req.headers["x-payment"] || req.headers["payment-signature"] || "";
+    const payload = parsePaymentHeader(raw);
+    if (!payload) {
+      write402(res, origin);
+      return { paid: false };
+    }
+    if (!hostSock) {
+      res.writeHead(503, jsonHead(origin));
+      res.end(JSON.stringify({ error: { message: "host tab not connected. Open /market and keep it open.", type: "server_error" } }));
+      return { paid: false };
+    }
+    try {
+      await assertHostIdentity();
+    } catch (e) {
+      res.writeHead(403, jsonHead(origin));
+      res.end(JSON.stringify({ error: { message: e instanceof Error ? e.message : "invalid ens", type: "identity_error" } }));
+      return { paid: false };
+    }
+    const settled = await settlePayment({
+      facilitator: cfg.facilitator,
+      requirements: requirements(),
+      paymentPayload: payload,
+    });
+    if (!settled.ok) {
+      write402(res, origin, { error: settled.error });
+      return { paid: false };
+    }
+    return { paid: { payer: settled.payer, payTx: settled.transaction } };
+  }
+
+  async function finalizePaid(p, { id, error, cluster }) {
+    const status = error ? "failed" : "done";
+    const peers = await eligiblePeers(cluster);
+    const credits = splitCredits(cfg.amountTinybar, cfg.hostCutBps, peers);
+    let payouts = [];
+    if (status === "done" && signingKey) {
+      try {
+        const out = await settleCredits({
+          credits,
+          operator: cfg.accountId,
+          privateKey: signingKey,
+          network: cfg.network,
+          autoMax: AUTO_TINYBAR,
+          dailyMax: DAILY_TINYBAR,
+          daySpent,
+        });
+        payouts = out.payouts;
+        daySpent = out.spent;
+      } catch {}
+    }
+    let hcsTx = "";
+    const draft = makeReceipt({
+      jobId: id,
+      model: p.model,
+      status,
+      payer: p.paid.payer,
+      payTo: cfg.accountId,
+      amountTinybar: cfg.amountTinybar,
+      payTx: p.paid.payTx,
+      network: cfg.network,
+      topicId: cfg.topicId,
+      credits,
+      payouts,
+    });
+    if (cfg.topicId && signingKey) {
+      const submitted = await submitTopicMessage({
+        topicId: cfg.topicId,
+        accountId: cfg.accountId,
+        privateKey: signingKey,
+        message: draft,
+        network: cfg.network,
+      });
+      hcsTx = submitted.transactionId || "";
+    }
+    const receipt = makeReceipt({ ...draft, hcsTx, status, credits: draft.credits, payouts: draft.payouts });
+    sendHost({ t: "receipt", id, receipt });
   }
 
   const server = http.createServer(async (req, res) => {
@@ -170,11 +309,6 @@ function listen() {
     }
     if (url.pathname === "/v1/chat/completions" && req.method === "POST") {
       if (!checkAuth(req.headers.authorization)) return deny(res, origin);
-      if (!hostSock) {
-        res.writeHead(503, jsonHead(origin));
-        res.end(JSON.stringify({ error: { message: "host tab not connected. Open /market and keep it open.", type: "server_error" } }));
-        return;
-      }
       const raw = await readBody(req, 1_000_000);
       let body;
       try { body = JSON.parse(raw || "{}"); } catch {
@@ -185,6 +319,13 @@ function listen() {
       if (!Array.isArray(body.messages)) {
         res.writeHead(400, jsonHead(origin));
         res.end(JSON.stringify({ error: { message: "messages required", type: "invalid_request_error" } }));
+        return;
+      }
+      const gated = await gatePay(req, res, origin);
+      if (gated.paid === false) return;
+      if (!hostSock) {
+        res.writeHead(503, jsonHead(origin));
+        res.end(JSON.stringify({ error: { message: "host tab not connected. Open /market and keep it open.", type: "server_error" } }));
         return;
       }
       const id = typeof body.id === "string" ? body.id : completionId();
@@ -198,8 +339,8 @@ function listen() {
         });
         res.write(`data: ${JSON.stringify({ ...toChunk(id, model, ""), choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] })}\n\n`);
       }
-      pending.set(id, { res, stream, model, origin, done: false });
-      sendHost({ t: "completion", id, model, messages: body.messages, stream });
+      pending.set(id, { res, stream, model, origin, done: false, paid: gated.paid });
+      sendHost({ t: "completion", id, model, messages: body.messages, stream, paid: !!gated.paid });
       return;
     }
     if (url.pathname === "/" && req.method === "GET") {
@@ -222,6 +363,7 @@ function listen() {
     );
     if (hostSock && hostSock !== socket) { try { hostSock.destroy(); } catch {} }
     hostSock = socket;
+    hostEns = "";
     let buf = Buffer.alloc(0);
     socket.on("data", (chunk) => {
       buf = Buffer.concat([buf, chunk]);
@@ -235,6 +377,7 @@ function listen() {
       for (const text of messages) {
         let d;
         try { d = JSON.parse(text); } catch { continue; }
+        if (d.t === "ens") { hostEns = String(d.ens || "").trim(); continue; }
         const p = pending.get(d.id);
         if (!p) continue;
         if (d.t === "delta" && p.stream && d.content) {
@@ -242,12 +385,18 @@ function listen() {
         }
         if (d.t === "done") {
           pending.delete(d.id);
-          finish(p, { id: d.id, content: d.content || "", error: d.error || null });
+          void (async () => {
+            if (p.paid && cfg) {
+              try { await finalizePaid(p, { id: d.id, error: d.error || null, cluster: d.cluster || [] }); }
+              catch {}
+            }
+            finish(p, { id: d.id, content: d.content || "", error: d.error || null });
+          })();
         }
       }
     });
     socket.on("close", () => {
-      if (hostSock === socket) { hostSock = null; failPending("host tab disconnected"); }
+      if (hostSock === socket) { hostSock = null; hostEns = ""; failPending("host tab disconnected"); }
     });
     socket.on("error", () => socket.destroy());
   });
@@ -255,8 +404,16 @@ function listen() {
   server.listen(PORT, HOST, () => {
     console.log(`Trusted Swarm local API`);
     console.log(`  POST http://${HOST}:${PORT}/v1/chat/completions`);
-    console.log(`  export OPENAI_API_KEY=${TOKEN}`);
+    console.log(process.env.OPENAI_API_KEY
+      ? `  Authorization: Bearer $OPENAI_API_KEY`
+      : `  export OPENAI_API_KEY=${TOKEN}`);
     console.log(`  Keep the host tab open — it connects to ws://${HOST}:${PORT}/bridge`);
+    if (cfg) {
+      console.log(`  x402 ${cfg.network} · ${cfg.amountTinybar} tinybar · payTo ${cfg.accountId}`);
+      if (cfg.topicId) console.log(`  HCS topic ${cfg.topicId}`);
+      console.log(`  ens ${ens.parent} · sepolia text:hedera`);
+      console.log(`  ledger payout auto ≤ ${AUTO_TINYBAR} tinybar · daily ≤ ${DAILY_TINYBAR}`);
+    }
   });
 }
 
