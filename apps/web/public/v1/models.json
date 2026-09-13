@@ -1,0 +1,10 @@
+{
+  "object": "list",
+  "data": [
+    { "id": "qwen3-0.6b", "object": "model", "owned_by": "trusted-swarm" },
+    { "id": "qwen3-1.7b", "object": "model", "owned_by": "trusted-swarm" },
+    { "id": "qwen3-4b", "object": "model", "owned_by": "trusted-swarm" },
+    { "id": "qwen3.8-27b", "object": "model", "owned_by": "trusted-swarm" },
+    { "id": "smollm-135m", "object": "model", "owned_by": "trusted-swarm" }
+  ]
+}

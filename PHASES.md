@@ -2,7 +2,7 @@
 
 Working contract for identity, payment, and settlement. Inference stays in [`Trusted Swarm.md`](Trusted%20Swarm.md) §8–9 and §13. This file does not rewrite the runtime.
 
-Credits here become **HBAR out** on paid jobs when Ledger payouts run (worker transfers only; host already received x402). Oversized payouts are blocked.
+Credits here become **HBAR out** on paid jobs (worker transfers only; host already received x402). Oversized payouts are recorded, not sent. Agents use the OpenAPI + Bazantic Recipe, not a Ledger key.
 
 ## Now — Hedera testnet
 
@@ -40,16 +40,13 @@ Register names on [app.ens.dev](https://app.ens.dev/) (ENSv2). Not [sepolia.app.
 
 Env: `ENS_PARENT`, `ENS_RPC`. Spec: §9.2, Phase 5.
 
-## Now — Ledger payouts
+## Now — Bazantic
 
-After a successful paid job, credits become HBAR out of the operator account.
+Agents should not need a human to explain `/v1`. Public spec: [`https://trusted-swarm.vercel.app/openapi.json`](https://trusted-swarm.vercel.app/openapi.json). Quote: `GET /v1/price`. Register that as an x402/MPP gateway on [bazantic.com](https://bazantic.com). Completions stay on localhost `serve.mjs`. The Recipe in [`runtime/bazantic-recipe.md`](runtime/bazantic-recipe.md) is quote → Hedera pay → swarm completion → HashScan verify.
 
-- Host/operator credit is **skipped** (they already received x402).
-- Worker credit ≤ 0.10 ℏ (`LEDGER_AUTO_TINYBAR`, default 10_000_000) → automatic `TransferTransaction`.
-- Over that, or daily > 10 ℏ → **no send** (`approve` / `block`). Device confirmation is the next USB step.
-- Signing key from `HEDERA_PRIVATE_KEY`, or `wallet-cli ring decrypt` when `LEDGER_RING_FILE` is set. The agent must not print that key.
+Spec: §9.4. Track: [Agentify a new API](https://ethglobal.com/events/ethonline2026/prizes/bazantic).
 
-Spec: §9.3, Phase 7. Track: [Ledger × ETHOnline](https://developers.ledger.com/ethonline) Key Ring CLI.
+Worker credits ≤ 0.10 ℏ still auto-transfer from `HEDERA_PRIVATE_KEY`. Over that, or daily > 10 ℏ → **no send**. No Ledger Key Ring.
 
 ## Optional — Arc
 
@@ -61,4 +58,4 @@ Disconnect-without-pay: drop a worker mid-run, show no credit. Token metering. R
 
 ## Out
 
-Public Vercel inference API. Intellune-style marketing restyle. Paying contributors on free `/market` jobs.
+Public Vercel inference API. Intellune-style marketing restyle. Paying contributors on free `/market` jobs. Ledger Key Ring.

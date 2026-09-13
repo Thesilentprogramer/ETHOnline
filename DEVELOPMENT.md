@@ -4,7 +4,7 @@
 
 Trusted Swarm is a **browser-based peer-to-peer AI compute network**. Independently owned devices join through a web app, advertise measured capabilities, receive a slice of a language model, run that slice on WebGPU, and (in later phases) get paid for verified work.
 
-It is **not** a general-purpose decentralized cloud. Phase 1 is the Trusted Swarm product: capability-aware onboarding, the web/PWA UI, and the first-party inference runtime in `[runtime/](runtime/)` (WebGPU + WebRTC layer-sliced rooms). Blockchain (ENS identity, Hedera x402/HCS payments, Ledger-protected payouts) is the open-network layer and is **not** in Phase 1.
+It is **not** a general-purpose decentralized cloud. Phase 1 is the Trusted Swarm product: capability-aware onboarding, the web/PWA UI, and the first-party inference runtime in `[runtime/](runtime/)` (WebGPU + WebRTC layer-sliced rooms). Blockchain (ENS identity, Hedera x402/HCS payments, Bazantic agent gateway) is the open-network layer and is **not** in Phase 1.
 
 ### The Core Idea
 
@@ -28,7 +28,7 @@ Peer A: execute an assigned layer range
 Host: final normalization, language-model head, and sampling
 ```
 
-1. **Later phases (not built yet)** — Task leases, signed work receipts, ENSv2 admission, Hedera x402-gated compute + HCS receipts, Ledger Key Ring payouts, disconnect-without-pay demo.
+1. **Later phases (not built yet)** — Task leases, signed work receipts, disconnect-without-pay demo.
 
 ---
 
@@ -44,7 +44,7 @@ Host: final normalization, language-model head, and sampling
 | **Signaling (upstream)**     | PeerJS (public cloud by default). Phase 1 demo is local tabs.                            |
 | **Identity (later)**         | ENSv2 node namespace                                                                     |
 | **Payments / audit (later)** | Hedera x402, HCS receipts, batch settlement                                              |
-| **Treasury (later)**         | Ledger Agent Stack / Key Ring                                                            |
+| **Agents**                   | Bazantic OpenAPI gateway + Recipe                                                        |
 | **UI Theme**                 | Serene-inspired: Dancing Script + Instrument Serif + Inter, liquid glass, `#0a0608`      |
 
 
@@ -63,7 +63,7 @@ Host: final normalization, language-model head, and sampling
 - **Vite React PWA** at `apps/web`: landing, `/onboard`, `/room`.
 - **Capability score + four roles** implemented in-app (history term is 0).
 - **Runtime wrapper**: `runtime/room.js` is HTML-coupled. We import `engine/` + `room/models.js` where possible and mount `/runtime/p2p.html` for the generation loop.
-- **Local tabs only**: no new signaling service; no Hedera/ENS/Ledger.
+- **Local tabs only**: no new signaling service; no Hedera/ENS/Bazantic in the Phase 1 UI.
 
 
 
@@ -148,14 +148,14 @@ Safari/iOS may be classified as light-worker or observer. Chrome/Edge desktop ar
 
 - [ ] **ENSv2** — `trustedswarm.eth` namespace, node subnames, manifest records, admission check that actually blocks invalid nodes.
 - [ ] **Hedera** — x402-gated compute endpoint, one real paid request, HCS work receipt, batch rewards.
-- [ ] **Ledger** — Key Ring scoped payouts; over-limit payout blocked.
+- [ ] **Bazantic** — Register `GET /openapi.json` as a gateway; paste `runtime/bazantic-recipe.md`.
 
 
 
 ### Nice to Have (architecture Phase 8 + extras)
 
 - [ ] **Polish and evidence** — Setup guide, explorer links, demo video, failure-case recording.
-- [ ] **Bazantic MCP / Recipe**, **The Graph** worker selection, Privy/World/Arc — only after the Hedera+ENS+Ledger vertical slice.
+- [ ] **The Graph** worker selection, Privy/World/Arc — only after Hedera+ENS+Bazantic.
 
 
 

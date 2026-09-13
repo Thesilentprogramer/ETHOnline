@@ -7,6 +7,7 @@ The swarm only runs in a browser room. This process does not infer — it forwar
 Keep `/market` (or `/runtime/p2p.html?host=1`) open as host, start the model when pledged GB is enough, then:
 
 ```bash
+cp runtime/.env.example runtime/.env   # then fill keys; omit Hedera to keep /v1 free
 node runtime/serve.mjs
 ```
 
@@ -61,10 +62,10 @@ After a paid job finishes, the host tab gets a receipt over the bridge WebSocket
 
 - Solo host (only pledged GB): 100% to the host (**no extra HBAR send** — they already received x402).
 - With workers: `HOST_CUT_BPS` (default 1000 = 10%) to the host; remainder by pledged GB. Observer / 0 GB: nothing.
-- Worker credits ≤ 0.10 ℏ are transferred automatically. Larger amounts are recorded as `approve` (Ledger confirmation) and **not** sent.
+- Worker credits ≤ 0.10 ℏ are transferred automatically. Larger amounts are recorded as `approve` and **not** sent.
 - Failed generation: receipt with no credits and no payouts.
 
-HCS submit needs `HEDERA_PRIVATE_KEY` (or `LEDGER_RING_FILE` + `wallet-cli ring decrypt`), `HCS_TOPIC_ID`, and `npm install @hiero-ledger/sdk` in `runtime/` (see [create a topic](https://docs.hedera.com/native/tutorials/consensus/create-first-topic)). HashScan links show on that job in `/market`.
+HCS submit needs `HEDERA_PRIVATE_KEY`, `HCS_TOPIC_ID`, and `npm install @hiero-ledger/sdk` in `runtime/` (see [create a topic](https://docs.hedera.com/native/tutorials/consensus/create-first-topic)). HashScan links show on that job in `/market`.
 
 ## ENSv2 (when Hedera is on)
 
@@ -77,18 +78,19 @@ If `HEDERA_ACCOUNT_ID` is set, paid `/v1` also requires a Sepolia ENS name. The 
 
 Paste the subname on `/onboard`. `ENS_PARENT` default `trustedswarm.eth`. `ENS_RPC` default `https://ethereum-sepolia-rpc.publicnode.com`. Register on [app.ens.dev](https://app.ens.dev/). The parent name itself is valid if you cannot create subnames yet.
 
-## Ledger Key Ring (payouts)
+## Bazantic (agents)
 
-`wallet-cli ring` encrypts the operator key. After `ring init` on your Ledger:
+`GET /openapi.json` is the spec to register. Public copy: `https://trusted-swarm.vercel.app/openapi.json`. `GET /v1/price` quotes tinybar without settling. Paste [`bazantic-recipe.md`](bazantic-recipe.md) as the Recipe (quote on Vercel → Hedera pay → completion on localhost).
 
 ```bash
-# you set WALLET_PASS in the environment; do not paste it into chat
-wallet-cli ring encrypt --key trusted-swarm -i operator.hedera -o operator.hedera.enc
-export LEDGER_RING_FILE=runtime/operator.hedera.enc
-export LEDGER_RING_KEY=trusted-swarm
+# after login at https://bazantic.com
+bazantic gateway add \
+  --spec-url https://trusted-swarm.vercel.app/openapi.json \
+  --endpoint https://trusted-swarm.vercel.app \
+  --name "Trusted Swarm"
 ```
 
-Then `serve.mjs` decrypts at runtime and never prints the key. Without a ring file it still uses `HEDERA_PRIVATE_KEY`.
+Vercel serves the spec and quote only. `POST /v1/chat/completions` still needs `node runtime/serve.mjs` and a host tab.
 
 ```bash
 export HEDERA_ACCOUNT_ID=0.0.x

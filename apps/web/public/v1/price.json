@@ -1,0 +1,17 @@
+{
+  "paid": true,
+  "amountTinybar": 100000,
+  "payTo": "0.0.10499107",
+  "network": "hedera:testnet",
+  "facilitator": "https://api.testnet.blocky402.com",
+  "hostCutBps": 1000,
+  "inference": "http://127.0.0.1:11435/v1/chat/completions",
+  "accepts": {
+    "scheme": "exact",
+    "network": "hedera:testnet",
+    "amount": "100000",
+    "payTo": "0.0.10499107",
+    "maxTimeoutSeconds": 300,
+    "asset": "0.0.0"
+  }
+}

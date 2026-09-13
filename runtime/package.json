@@ -16,7 +16,7 @@
     "bench:breakdown": "deno run --unstable-webgpu --allow-read --allow-env benchmarks/bench_breakdown.js",
     "serve": "npx -y serve -l 8080 .",
     "serve:api": "node serve.mjs",
-    "check:serve": "node serve.check.mjs && node pay.check.mjs && node x402.check.mjs && node ens.check.mjs && node payout.check.mjs",
+    "check:serve": "node serve.check.mjs && node pay.check.mjs && node x402.check.mjs && node ens.check.mjs && node payout.check.mjs && node openapi.check.mjs",
     "deploy:staging": "scripts/deploy-staging.sh",
     "e2e": "node tests/e2e/room.mjs"
   },

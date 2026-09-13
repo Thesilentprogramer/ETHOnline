@@ -18,7 +18,8 @@ import {
 import { loadFeePayer, settlePayment } from "./x402.js";
 import { submitTopicMessage } from "./hcs.mjs";
 import { ensConfig, readHederaText, sepoliaGetText } from "./ens.js";
-import { loadSigningKey, settleCredits, AUTO_TINYBAR, DAILY_TINYBAR } from "./payout.js";
+import { settleCredits, AUTO_TINYBAR, DAILY_TINYBAR } from "./payout.js";
+import { openApiSpec } from "./openapi.js";
 
 loadDotenv();
 
@@ -132,9 +133,6 @@ function listen() {
   let daySpent = 0;
   if (cfg) {
     loadFeePayer(cfg.facilitator, cfg.network).then((id) => { feePayer = id; }).catch(() => {});
-    loadSigningKey().then((k) => { if (k) signingKey = k; }).catch((e) => {
-      console.log(`  ledger ring: ${e instanceof Error ? e.message : "decrypt failed"}`);
-    });
   }
 
   function sendHost(obj) {
@@ -298,6 +296,28 @@ function listen() {
       res.end();
       return;
     }
+    if (url.pathname === "/openapi.json" && req.method === "GET") {
+      res.writeHead(200, jsonHead(origin));
+      res.end(JSON.stringify(openApiSpec({ port: PORT })));
+      return;
+    }
+    if (url.pathname === "/v1/price" && req.method === "GET") {
+      res.writeHead(200, jsonHead(origin));
+      if (!cfg) {
+        res.end(JSON.stringify({ paid: false }));
+        return;
+      }
+      res.end(JSON.stringify({
+        paid: true,
+        amountTinybar: cfg.amountTinybar,
+        payTo: cfg.accountId,
+        network: cfg.network,
+        facilitator: cfg.facilitator,
+        hostCutBps: cfg.hostCutBps,
+        accepts: paymentRequirements(cfg, feePayer),
+      }));
+      return;
+    }
     if (url.pathname === "/v1/models" && req.method === "GET") {
       if (!checkAuth(req.headers.authorization)) return deny(res, origin);
       res.writeHead(200, jsonHead(origin));
@@ -345,7 +365,7 @@ function listen() {
     }
     if (url.pathname === "/" && req.method === "GET") {
       res.writeHead(200, { "content-type": "text/plain" });
-      res.end("Trusted Swarm local API. POST /v1/chat/completions\n");
+      res.end("Trusted Swarm local API. POST /v1/chat/completions · GET /openapi.json · GET /v1/price\n");
       return;
     }
     res.writeHead(404, jsonHead(origin));
@@ -403,7 +423,9 @@ function listen() {
 
   server.listen(PORT, HOST, () => {
     console.log(`Trusted Swarm local API`);
-    console.log(`  POST http://${HOST}:${PORT}/v1/chat/completions`);
+      console.log(`  GET  http://${HOST}:${PORT}/openapi.json`);
+      console.log(`  GET  http://${HOST}:${PORT}/v1/price`);
+      console.log(`  POST http://${HOST}:${PORT}/v1/chat/completions`);
     console.log(process.env.OPENAI_API_KEY
       ? `  Authorization: Bearer $OPENAI_API_KEY`
       : `  export OPENAI_API_KEY=${TOKEN}`);
@@ -412,7 +434,7 @@ function listen() {
       console.log(`  x402 ${cfg.network} · ${cfg.amountTinybar} tinybar · payTo ${cfg.accountId}`);
       if (cfg.topicId) console.log(`  HCS topic ${cfg.topicId}`);
       console.log(`  ens ${ens.parent} · sepolia text:hedera`);
-      console.log(`  ledger payout auto ≤ ${AUTO_TINYBAR} tinybar · daily ≤ ${DAILY_TINYBAR}`);
+      console.log(`  payout auto ≤ ${AUTO_TINYBAR} tinybar · daily ≤ ${DAILY_TINYBAR}`);
     }
   });
 }

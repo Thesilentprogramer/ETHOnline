@@ -1,0 +1,55 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Trusted Swarm inference",
+    "version": "0.2.0",
+    "description": "Public spec and Hedera x402 quote. POST /v1/chat/completions runs on the host-tab bridge at http://127.0.0.1:11435, not on Vercel."
+  },
+  "servers": [
+    { "url": "https://trusted-swarm.vercel.app", "description": "Public spec and quote" },
+    { "url": "http://127.0.0.1:11435", "description": "Host-tab inference" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer" }
+    }
+  },
+  "paths": {
+    "/openapi.json": {
+      "get": {
+        "security": [],
+        "summary": "This document",
+        "operationId": "getOpenApi",
+        "responses": { "200": { "description": "OpenAPI 3.1" } }
+      }
+    },
+    "/v1/price": {
+      "get": {
+        "security": [],
+        "summary": "Quote the Hedera x402 price without settling",
+        "operationId": "estimateComputePrice",
+        "responses": { "200": { "description": "paid flag, tinybar, payTo" } }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "security": [],
+        "summary": "List catalogue ids",
+        "operationId": "listModels",
+        "responses": { "200": { "description": "OpenAI model list" } }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Run a chat completion on the host-tab swarm (localhost:11435)",
+        "operationId": "submitInferenceTask",
+        "description": "Not hosted on Vercel. Point completions at http://127.0.0.1:11435 with a host tab open on /market.",
+        "responses": {
+          "200": { "description": "chat.completion" },
+          "402": { "description": "x402 v2 PaymentRequired" }
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,28 @@
   "installCommand": "npm install --prefix apps/web",
   "buildCommand": "npm run build --prefix apps/web",
   "outputDirectory": "apps/web/dist",
+  "headers": [
+    {
+      "source": "/openapi.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/v1/(.*)",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "authorization, content-type, x-api-key, x-payment" }
+      ]
+    }
+  ],
   "rewrites": [
-    { "source": "/((?!runtime/|assets/).*)", "destination": "/index.html" }
+    { "source": "/v1/price", "destination": "/v1/price.json" },
+    { "source": "/v1/models", "destination": "/v1/models.json" },
+    { "source": "/v1/new-endpoint", "destination": "/v1/price.json" },
+    { "source": "/((?!runtime/|assets/|openapi\\.json|v1/).*)", "destination": "/index.html" }
   ]
 }

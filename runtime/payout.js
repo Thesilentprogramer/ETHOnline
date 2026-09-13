@@ -1,5 +1,4 @@
-// Credits → HBAR. Policy from spec §9.3. Key Ring may unwrap the operator key;
-// Hedera SDK still signs (wallet-cli send is BTC/ETH/SOL only).
+// Credits → HBAR via Hedera SDK. Over-cap stays approve (no send).
 
 export const AUTO_TINYBAR = 10_000_000; // 0.10 ℏ
 export const DAILY_TINYBAR = 1_000_000_000; // 10 ℏ
@@ -10,33 +9,9 @@ export function payoutDecision({ tinybar, account, operator, autoMax = AUTO_TINY
   const from = String(operator || "").trim();
   if (!to) return { action: "block", reason: "no hedera account" };
   if (to === from) return { action: "skip", reason: "operator already received x402" };
-  if (amt > autoMax) return { action: "approve", reason: "over auto cap — Ledger confirmation required" };
+  if (amt > autoMax) return { action: "approve", reason: "over auto cap" };
   if (daySpent + amt > dailyMax) return { action: "block", reason: "daily cap" };
   return { action: "auto" };
-}
-
-export async function loadSigningKey(env = process.env) {
-  const file = String(env.LEDGER_RING_FILE || "").trim();
-  const name = String(env.LEDGER_RING_KEY || "trusted-swarm").trim();
-  if (file) {
-    const { spawn } = await import("node:child_process");
-    const { existsSync } = await import("node:fs");
-    if (!existsSync(file)) throw new Error("LEDGER_RING_FILE missing");
-    return await new Promise((resolve, reject) => {
-      const p = spawn("wallet-cli", ["ring", "decrypt", "--key", name, "-i", file], {
-        env: process.env,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      const out = [];
-      p.stdout.on("data", (d) => out.push(d));
-      p.on("error", reject);
-      p.on("close", (code) => {
-        if (code !== 0) reject(new Error("wallet-cli ring decrypt failed"));
-        else resolve(Buffer.concat(out).toString("utf8").trim());
-      });
-    });
-  }
-  return String(env.HEDERA_PRIVATE_KEY || "").trim();
 }
 
 export async function transferHbar({ from, to, tinybar, privateKey, network }) {
