@@ -16,6 +16,7 @@ export function Onboard() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const intent = params.get('intent') === 'worker' ? 'worker' : 'host'
+  const code = (params.get('code') || '').toUpperCase()
   const [step, setStep] = useState<Step>('why')
   const [probeTick, setProbeTick] = useState(0)
   const [report, setReport] = useState<CapabilityReport | null>(null)
@@ -61,7 +62,6 @@ export function Onboard() {
 
   function marketQuery(role = intent) {
     const q = new URLSearchParams({ role })
-    const code = params.get('code')
     if (code) q.set('code', code)
     return `/market?${q}`
   }
@@ -79,18 +79,22 @@ export function Onboard() {
   }
 
   const stepN = step === 'why' ? 1 : step === 'probe' ? 2 : 3
+  const workerRoom = intent === 'worker' && code
 
   return (
     <Shell>
-      <main className="gutter mx-auto max-w-3xl py-10 md:py-14">
-        <p className="text-xs tracking-normal text-white/45">Step {stepN} of 3</p>
+      <main className="page mx-auto max-w-3xl py-10 md:py-16">
+        <p className="text-xs tracking-normal text-[var(--fg-faint)]">Step {stepN} of 3</p>
 
         {step === 'why' && (
           <>
-            <h1 className="font-instrument mt-3 text-4xl md:text-5xl">This machine can hold layers</h1>
-            <p className="mt-4 max-w-xl tracking-normal text-white/70">
-              We measure WebGPU, memory headroom, and WebRTC so the room can schedule work. No MAC,
-              serial, or fingerprint. You can paste an ENS subname later if you want to earn.
+            <h1 className="display mt-4 text-4xl md:text-5xl">
+              {workerRoom ? `This machine can join ${code}` : 'This machine can hold layers'}
+            </h1>
+            <p className="mt-4 max-w-xl tracking-normal text-[var(--fg-soft)]">
+              {workerRoom
+                ? `We measure WebGPU, memory headroom, and WebRTC so room ${code} can schedule you. Continue keeps this code — you do not mint another room.`
+                : 'We measure WebGPU, memory headroom, and WebRTC so the room can schedule work. No MAC, serial, or fingerprint. You can paste an ENS subname later if you want to earn.'}
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <Button
@@ -102,7 +106,7 @@ export function Onboard() {
               >
                 Calibrate
               </Button>
-              <button type="button" onClick={skip} className="press text-sm text-white/50 underline decoration-white/20">
+              <button type="button" onClick={skip} className="ghost-btn">
                 Skip to market
               </button>
             </div>
@@ -111,30 +115,22 @@ export function Onboard() {
 
         {step === 'probe' && (
           <>
-            <h1 className="font-instrument mt-3 text-4xl md:text-5xl">Reading this device</h1>
-            <p className="mt-4 tracking-normal text-white/70">Adapter, memory, WebRTC — scheduling signals only.</p>
-            {busy && !error && <p className="mt-8 text-white/50">Calibrating adapter…</p>}
+            <h1 className="display mt-4 text-4xl md:text-5xl">Reading this device</h1>
+            <p className="mt-4 tracking-normal text-[var(--fg-soft)]">Adapter, memory, WebRTC — scheduling signals only.</p>
+            {busy && !error && <p className="mt-10 text-[var(--fg-faint)]">Calibrating adapter…</p>}
             {error && (
-              <div className="mt-8">
-                <p className="text-red-300">{error}</p>
+              <div className="mt-10">
+                <p className="text-red-800">{error}</p>
                 <div className="mt-6 flex flex-wrap items-center gap-4">
                   <Button onClick={() => setProbeTick((n) => n + 1)}>Retry</Button>
-                  <button
-                    type="button"
-                    onClick={skip}
-                    className="press text-sm text-white/50 underline decoration-white/20"
-                  >
+                  <button type="button" onClick={skip} className="ghost-btn">
                     Skip to market
                   </button>
                 </div>
               </div>
             )}
             {!error && (
-              <button
-                type="button"
-                onClick={skip}
-                className="press mt-10 text-sm text-white/50 underline decoration-white/20"
-              >
+              <button type="button" onClick={skip} className="ghost-btn mt-10">
                 Skip to market
               </button>
             )}
@@ -143,21 +139,23 @@ export function Onboard() {
 
         {step === 'score' && report && (
           <>
-            <h1 className="font-instrument mt-3 text-4xl md:text-5xl">This machine can join the room</h1>
-            <p className="mt-3 tracking-normal text-white/70">
+            <h1 className="display mt-4 text-4xl md:text-5xl">
+              {workerRoom ? `Ready for room ${code}` : 'This machine can join the room'}
+            </h1>
+            <p className="mt-4 tracking-normal text-[var(--fg-soft)]">
               Score {report.score} · {roleLabel(report.role)}. Caps stay on this device.
             </p>
-            <div className="mt-8 grid gap-4">
+            <div className="mt-10 grid gap-6">
               <Card>
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-xs tracking-wide text-white/50">Score</p>
-                    <p className="font-instrument text-5xl">{report.score}</p>
+                    <p className="text-xs tracking-wide text-[var(--fg-faint)]">Score</p>
+                    <p className="display mt-2 text-5xl">{report.score}</p>
                   </div>
-                  <p className="text-sm tracking-widest text-white/80 uppercase">{roleLabel(report.role)}</p>
+                  <p className="text-sm tracking-widest uppercase">{roleLabel(report.role)}</p>
                 </div>
                 <Progress className="mt-4" value={report.score} />
-                <p className="mt-3 text-xs tracking-normal text-white/50">
+                <p className="mt-3 text-xs tracking-normal text-[var(--fg-faint)]">
                   {SCORE_WEIGHTS.compute * 100}% compute · {SCORE_WEIGHTS.network * 100}% network ·{' '}
                   {SCORE_WEIGHTS.memory * 100}% memory · {SCORE_WEIGHTS.stability * 100}% stability ·{' '}
                   {SCORE_WEIGHTS.history * 100}% history (0 until later phases)
@@ -174,12 +172,11 @@ export function Onboard() {
               </Card>
 
               <Card>
-                <h2 className="font-instrument text-2xl">ENS name</h2>
-                <p className="mt-2 text-sm tracking-normal text-white/55">
-                  Paste a <span className="text-white/80">trustedswarm.eth</span> subname to earn on paid
-                  jobs. Leave blank to join without credits.
+                <h2 className="display text-2xl">ENS name</h2>
+                <p className="mt-2 text-sm tracking-normal text-[var(--fg-soft)]">
+                  Paste a trustedswarm.eth subname to earn on paid jobs. Leave blank to join without credits.
                 </p>
-                <label className="mt-4 block text-sm tracking-normal text-white/70">
+                <label className="mt-4 block text-sm tracking-normal text-[var(--fg-soft)]">
                   Subname
                   <Input
                     className="mt-1"
@@ -193,8 +190,8 @@ export function Onboard() {
               </Card>
 
               <Card>
-                <h2 className="font-instrument text-2xl">Session controls</h2>
-                <label className="mt-4 block text-sm tracking-normal text-white/70">
+                <h2 className="display text-2xl">Session controls</h2>
+                <label className="mt-6 block text-sm tracking-normal text-[var(--fg-soft)]">
                   Max session (minutes)
                   <Input
                     className="mt-1"
@@ -205,7 +202,7 @@ export function Onboard() {
                     onChange={(e) => setMaxMinutes(Number(e.target.value) || 5)}
                   />
                 </label>
-                <label className="mt-4 block text-sm tracking-normal text-white/70">
+                <label className="mt-6 block text-sm tracking-normal text-[var(--fg-soft)]">
                   Memory cap (GB)
                   <Input
                     className="mt-1"
@@ -216,11 +213,11 @@ export function Onboard() {
                     onChange={(e) => setMemoryCapGb(Number(e.target.value) || 0.5)}
                   />
                 </label>
-                <label className="mt-4 flex items-center gap-3 text-sm tracking-normal">
+                <label className="mt-6 flex items-center gap-3 text-sm tracking-normal">
                   <Checkbox.Root
                     checked={workUnfocused}
                     onCheckedChange={setWorkUnfocused}
-                    className="press flex size-5 items-center justify-center rounded-md border border-white/25 data-[checked]:bg-white data-[checked]:text-black"
+                    className="press flex size-5 items-center justify-center rounded-md border border-[var(--rule)] data-[checked]:bg-[var(--pill-bg)] data-[checked]:text-[var(--pill-fg)]"
                   >
                     <Checkbox.Indicator className="text-[11px] leading-none">✓</Checkbox.Indicator>
                   </Checkbox.Root>
@@ -232,7 +229,7 @@ export function Onboard() {
                 <Button size="lg" onClick={continueToRoom}>
                   Continue as {intent}
                 </Button>
-                <button type="button" onClick={skip} className="press text-sm text-white/50 underline decoration-white/20">
+                <button type="button" onClick={skip} className="ghost-btn">
                   Skip to market
                 </button>
               </div>
@@ -247,7 +244,7 @@ export function Onboard() {
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div>
-      <p className="text-[10px] tracking-[0.16em] text-white/40 uppercase">{k}</p>
+      <p className="text-[10px] tracking-[0.16em] text-[var(--fg-faint)] uppercase">{k}</p>
       <p className="tracking-normal">{v}</p>
     </div>
   )

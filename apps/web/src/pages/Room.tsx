@@ -25,28 +25,29 @@ export function Room() {
   }, [startedAt])
 
   const src = useMemo(
-    () => runtimeRoomUrl({
-      code: role === 'worker' ? appliedCode : undefined,
-      join: role === 'worker' && !!appliedCode,
-    }),
+    () =>
+      runtimeRoomUrl({
+        code: role === 'worker' ? appliedCode : undefined,
+        join: role === 'worker' && !!appliedCode,
+      }),
     [role, appliedCode],
   )
 
   function applyJoin(e: FormEvent) {
     e.preventDefault()
-    const code = joinCode.trim().toUpperCase()
-    setAppliedCode(code)
-    const next = new URLSearchParams(params)
-    next.set('role', 'worker')
-    if (code) next.set('code', code)
-    setParams(next)
+    const next = joinCode.trim().toUpperCase()
+    setAppliedCode(next)
+    const q = new URLSearchParams(params)
+    q.set('role', 'worker')
+    if (next) q.set('code', next)
+    setParams(q)
   }
 
   return (
     <Shell>
       <main className="flex min-h-[calc(100svh-var(--header-h))] flex-col">
-        <div className="gutter liquid-glass mb-0 grid gap-3 rounded-none py-3 md:grid-cols-[1fr_auto] md:items-center">
-          <div className="flex flex-wrap gap-3 text-xs tracking-normal text-white/60">
+        <div className="page grid gap-4 border-b border-[var(--rule)] py-4 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs tracking-normal text-[var(--fg-soft)]">
             <Metric k="role" v={cap ? roleLabel(cap.role) : 'unprobed'} />
             <Metric k="score" v={cap ? String(cap.score) : '—'} />
             <Metric k="tab" v={role} />
@@ -56,14 +57,14 @@ export function Room() {
             <Metric k="ttft / tok/s" v="see runtime below" />
             <Metric k="status" v={iframeStatus} />
           </div>
-          <p className="text-xs text-white/50">
-            Same Wi-Fi: laptop creates the room in the runtime below, then open the join URL on
-            your phone (Chrome/Edge). Phone WebGPU is limited — it can still join as a light worker.
+          <p className="text-xs text-[var(--fg-faint)]">
+            Same Wi-Fi: laptop creates the room in the runtime below, then open the join URL on your
+            phone (Chrome/Edge). Phone WebGPU is limited — it can still join as a light worker.
           </p>
         </div>
 
         {role === 'worker' && (
-          <form onSubmit={applyJoin} className="gutter flex gap-2 py-3">
+          <form onSubmit={applyJoin} className="page flex gap-3 py-4">
             <Input
               placeholder="ROOM CODE"
               value={joinCode}
@@ -77,9 +78,12 @@ export function Room() {
         )}
 
         {!cap && (
-          <Card className="gutter mx-0 my-4">
+          <Card className="gutter my-6">
             No capability report in this tab.{' '}
-            <Link to={`/onboard?intent=${role}`} className="underline">
+            <Link
+              to={`/onboard?intent=${role}${appliedCode ? `&code=${appliedCode}` : ''}`}
+              className="underline"
+            >
               Run onboarding
             </Link>{' '}
             first.
@@ -94,7 +98,7 @@ export function Room() {
           onLoad={() => setIframeStatus('runtime ready')}
         />
 
-        <footer className="gutter flex flex-wrap items-center gap-3 py-3 text-xs tracking-normal text-white/50">
+        <footer className="page flex flex-wrap items-center gap-4 py-4 text-xs tracking-normal text-[var(--fg-faint)]">
           <span>
             Caps: {controls.maxMinutes} min · {controls.memoryCapGb} GB · unfocused{' '}
             {controls.workUnfocused ? 'on' : 'off'}
@@ -102,7 +106,10 @@ export function Room() {
           <a href="/runtime/p2p.html" className="underline">
             Open room full-page
           </a>
-          <Link to="/onboard" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+          <Link
+            to={`/onboard${appliedCode ? `?code=${appliedCode}` : ''}`}
+            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
+          >
             Re-probe
           </Link>
         </footer>
@@ -114,7 +121,7 @@ export function Room() {
 function Metric({ k, v }: { k: string; v: string }) {
   return (
     <span>
-      <span className="text-white/35">{k}</span> {v}
+      <span className="text-[var(--fg-faint)]">{k}</span> {v}
     </span>
   )
 }

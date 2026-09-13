@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils'
 export const fieldStyles = cva('w-full text-sm outline-none', {
   variants: {
     tone: {
-      dark: 'border border-white/15 bg-white/5 text-white placeholder:text-white/40 focus:border-white/40',
-      light: 'border border-[#161410]/10 bg-white text-[#161410] placeholder:text-[#161410]/30 focus:border-[#161410]/25',
+      dark: 'border border-[var(--rule)] bg-white text-[var(--fg)] placeholder:text-[var(--fg-faint)] focus:border-[var(--fg)]',
+      light: 'border border-[var(--rule)] bg-white text-[var(--fg)] placeholder:text-[var(--fg-faint)] focus:border-[var(--fg)]',
     },
   },
-  defaultVariants: { tone: 'dark' },
+  defaultVariants: { tone: 'light' },
 })
 
 export function Input({

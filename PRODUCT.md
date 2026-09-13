@@ -32,7 +32,7 @@ Vite PWA at `apps/web` (port 5180). Runtime at `/runtime/p2p.html`. Local bridge
 
 ## Brand Commitments
 
-Name: Trusted Swarm. Hybrid: cream marketing `/` (pixel-close to the Supaste export’s composition, Trusted Swarm copy only). Dark Serene for `/market`, `/onboard`, `/room`, and `runtime/p2p.html`. Faces: Dancing Script wordmark, Instrument Serif display, Inter UI.
+Name: Trusted Swarm. Paper editorial everywhere in the PWA (`#f2f0ec` / `#0d0c0b`, Inter Tight, dark pills). Runtime iframe stays the existing dark GPU console (`runtime/p2p.html`).
 
 ## Evidence on Hand
 
