@@ -13,10 +13,12 @@ import {
   makeJob,
   saveJobs,
   saveRoomCode,
+  type JobReceipt,
   type JobStatus,
   type SwarmJob,
 } from '@/swarm/queue.ts'
 import { MODELS, runtimeRoomUrl } from '@/swarm/runtime.ts'
+import { loadEns } from '@/swarm/session.ts'
 
 const STATUS: Record<JobStatus, string> = {
   waiting: 'border-white/25 text-white/60',
@@ -38,7 +40,7 @@ export function Market() {
   const seedPrompt = useRef(params.get('prompt') || '')
 
   const src = useMemo(
-    () => runtimeRoomUrl({ code, host: role === 'host', join: role === 'worker' }),
+    () => runtimeRoomUrl({ code, host: role === 'host', join: role === 'worker', ens: loadEns() }),
     [code, role],
   )
 
@@ -66,6 +68,13 @@ export function Market() {
       if (d.t === 'room' && d.code) setCode(String(d.code).toUpperCase())
       if (d.t === 'cluster') setCluster(String(d.summary || d.cluster || ''))
       if (d.t === 'ready') flushPending(iframeRef.current)
+      if (d.t === 'receipt' && d.receipt && d.id) {
+        setJobs((prev) => {
+          const next = prev.map((j) => (j.id === d.id ? { ...j, receipt: d.receipt, paid: true } : j))
+          saveJobs(next)
+          return next
+        })
+      }
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
@@ -144,12 +153,18 @@ export function Market() {
             {jobs.map((job) => (
               <li key={job.id} className="queue-row rounded-2xl border border-white/10 px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
-                  <Badge className={STATUS[job.status]}>{job.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={STATUS[job.status]}>{job.status}</Badge>
+                    {job.receipt || job.paid ? (
+                      <Badge className="border-white/40 text-white">paid</Badge>
+                    ) : null}
+                  </div>
                   <span className="text-xs text-white/45">{job.model}</span>
                 </div>
                 <p className="mt-2 text-sm tracking-normal text-white/90">{lastUserText(job.messages) || '—'}</p>
                 {job.reply && <p className="mt-2 text-sm tracking-normal text-white/60">{job.reply}</p>}
                 {job.error && <p className="mt-2 text-sm text-red-300">{job.error}</p>}
+                {job.receipt && <ReceiptLine receipt={job.receipt} />}
               </li>
             ))}
           </ul>
@@ -167,6 +182,30 @@ export function Market() {
         </aside>
       </main>
     </Shell>
+  )
+}
+
+function ReceiptLine({ receipt }: { receipt: JobReceipt }) {
+  const href = receipt.hcsScan || receipt.payScan
+  const credits = (receipt.credits || [])
+    .map((c) => `${c.ens ? c.ens + ' ' : ''}${c.role} ${c.tinybar} tinybar`)
+    .join(' · ')
+  const pays = (receipt.payouts || [])
+    .map((p) => `${p.action}${p.tx ? ' ' + p.tx : p.reason ? ' ' + p.reason : ''}`)
+    .join(' · ')
+  return (
+    <p className="mt-2 text-xs tracking-normal text-white/50">
+      {credits || 'no credits'}
+      {pays ? ` · payout ${pays}` : ''}
+      {href ? (
+        <>
+          {' · '}
+          <a href={href} target="_blank" rel="noreferrer" className="underline decoration-white/20">
+            HashScan
+          </a>
+        </>
+      ) : null}
+    </p>
   )
 }
 

@@ -6,6 +6,22 @@ const JOBS_KEY = 'trusted-swarm-jobs'
 
 export type JobStatus = 'waiting' | 'running' | 'done' | 'failed'
 
+export type JobReceipt = {
+  jobId: string
+  model: string
+  status: string
+  payer: string
+  payTo: string
+  amountTinybar: number
+  payTx: string
+  payScan: string
+  topicId: string
+  hcsTx: string
+  hcsScan: string
+  credits: { id: string; role: string; gb: number; tinybar: number; ens?: string; account?: string }[]
+  payouts?: { id: string; role: string; account: string; tinybar: number; action: string; reason?: string; tx?: string }[]
+}
+
 export type SwarmJob = {
   id: string
   model: string
@@ -15,6 +31,8 @@ export type SwarmJob = {
   error?: string
   source: string
   createdAt: number
+  paid?: boolean
+  receipt?: JobReceipt
 }
 
 export function newRoomCode() {
