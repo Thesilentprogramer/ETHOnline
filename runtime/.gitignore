@@ -11,6 +11,8 @@ engine/q38/
 .vercel/
 .gstack/
 node_modules/
+.env
+*.enc
 local-server/
 models/
 presentation/
